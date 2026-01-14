@@ -1,8 +1,6 @@
-# Flow State 🌊
+# <img src="logo.png" height="42" align="top"/> Flow State
 
 **Flow State** is a high-performance, local-first AI dictation assistant for macOS. Built with `WhisperKit`, it runs entirely on-device (Apple Silicon optimized), ensuring 100% privacy and zero latency.
-
-![App Icon](logo.png)
 
 ## 🚀 Features
 
