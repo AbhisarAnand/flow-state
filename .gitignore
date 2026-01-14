@@ -1,0 +1,19 @@
+# Xcode
+.DS_Store
+build/
+*.xcodeproj/project.xcworkspace
+*.xcodeproj/xcuserdata
+DerivedData/
+
+# Swift Package Manager
+.build/
+Packages/
+
+# App Builds
+*.app
+*.dSYM
+*.dmg
+pack.temp.dmg
+
+# Config
+.env

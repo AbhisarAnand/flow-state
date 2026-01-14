@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 500px;
+            /* User Requested Step 1 */
+            height: 288px;
+            /* User Requested Step 1 */
+            background-color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .arrow-container {
+            width: 160px;
+            height: 80px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* Removed translateY to center perfectly */
+        }
+
+        svg {
+            width: 140px;
+            /* BIGGER ARROW */
+            height: 60px;
+            overflow: visible;
+            filter: drop-shadow(0px 2px 3px rgba(59, 130, 246, 0.2));
+        }
+    </style>
+</head>
+
+<body>
+    <div class="arrow-container">
+        <!-- Waveform Arrow -->
+        <svg viewBox="0 0 120 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="grad1" x1="0" y1="0" x2="120" y2="0" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#93C5FD" />
+                    <stop offset="100%" stop-color="#2563EB" />
+                </linearGradient>
+            </defs>
+            <path d="M10 20 Q15 10, 20 20 T30 20 T40 20 T50 20 T60 20 T70 20 T80 20 L110 20" stroke="url(#grad1)"
+                stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M100 10 L110 20 L100 30" stroke="#2563EB" stroke-width="4" stroke-linecap="round"
+                stroke-linejoin="round" />
+        </svg>
+    </div>
+</body>
+
+</html>
