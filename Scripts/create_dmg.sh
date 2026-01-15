@@ -5,7 +5,7 @@ APP_NAME="FlowState"
 DMG_NAME="${APP_NAME}_Installer"
 VOL_NAME="${APP_NAME}"
 SRC_APP="./${APP_NAME}.app"
-BG_IMG_PATH="./installer_background.png"
+BG_IMG_PATH="Assets/installer_background.png"
 
 # Verify .app exists
 if [ ! -d "$SRC_APP" ]; then
@@ -98,4 +98,4 @@ hdiutil convert "pack.temp.dmg" -format UDZO -imagekey zlib-level=9 -o "${DMG_NA
 rm -f "pack.temp.dmg"
 
 echo "✅ DMG Created: ${DMG_NAME}.dmg"
-open .
+# open  .  # Don't auto open
