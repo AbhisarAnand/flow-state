@@ -7,49 +7,20 @@ class TextFormatter {
     
     private init() {}
     
-    // MARK: - Main Format Function
+    // MARK: - Main Format Function (Universal Smart Formatting)
     
-    func format(_ text: String, for category: ProfileCategory) async -> String {
-        switch category {
-        case .casual:
-            return formatCasual(text)
-        case .formal:
-            return await formatFormalAsync(text)
-        case .code:
-            return formatCode(text)
-        case .default:
-            return formatDefault(text)
-        }
-    }
-    
-    // MARK: - Casual (Messaging)
-    
-    func formatCasual(_ text: String) -> String {
-        // Lowercase, no trailing punctuation
-        var result = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        // Remove trailing period (keep ? and !)
-        if result.hasSuffix(".") {
-            result = String(result.dropLast())
-        }
-        
-        return result
-    }
-    
-    // MARK: - Formal (Email) - Async with LLM
-    
-    func formatFormalAsync(_ text: String) async -> String {
+    func format(_ text: String, appName: String?, category: ProfileCategory) async -> String {
         do {
-            return try await GroqService.shared.formatAsEmail(text)
+            return try await GroqService.shared.smartFormat(text, appName: appName, appCategory: category)
         } catch {
             print("[TextFormatter] Groq failed: \(error), using fallback")
-            return formatFormal(text)
+            return formatFallback(text)
         }
     }
     
-    // MARK: - Formal Fallback (Rule-based)
+    // MARK: - Fallback (Rule-based when API unavailable)
     
-    func formatFormal(_ text: String) -> String {
+    func formatFallback(_ text: String) -> String {
         let tokenizer = NLTokenizer(unit: .sentence)
         tokenizer.string = text
         
@@ -72,7 +43,7 @@ class TextFormatter {
         }
         
         // Remove filler words
-        let fillerWords = ["um", "uh", "like", "you know", "basically", "actually", "literally"]
+        let fillerWords = ["um", "uh", "like", "you know", "basically", "actually", "literally", "so yeah"]
         var cleaned = result
         for filler in fillerWords {
             cleaned = cleaned.replacingOccurrences(of: " \(filler) ", with: " ", options: .caseInsensitive)
@@ -81,38 +52,5 @@ class TextFormatter {
         
         return cleaned.trimmingCharacters(in: .whitespaces)
     }
-    
-    // MARK: - Code (Preserve Technical Terms)
-    
-    func formatCode(_ text: String) -> String {
-        // Minimal processing - preserve as spoken
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-    
-    // MARK: - Default (Basic Capitalization)
-    
-    func formatDefault(_ text: String) -> String {
-        let tokenizer = NLTokenizer(unit: .sentence)
-        tokenizer.string = text
-        
-        var result = ""
-        tokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { range, _ in
-            var sentence = String(text[range]).trimmingCharacters(in: .whitespaces)
-            
-            // Capitalize first letter
-            if let first = sentence.first {
-                sentence = first.uppercased() + sentence.dropFirst()
-            }
-            
-            // Ensure punctuation
-            if !sentence.isEmpty && !sentence.hasSuffix(".") && !sentence.hasSuffix("?") && !sentence.hasSuffix("!") {
-                sentence += "."
-            }
-            
-            result += sentence + " "
-            return true
-        }
-        
-        return result.trimmingCharacters(in: .whitespaces)
-    }
 }
+

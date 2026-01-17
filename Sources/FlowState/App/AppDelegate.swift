@@ -36,9 +36,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 Task {
                     let rawText = await self?.transcriptionManager.transcribe(audioSamples: samples) ?? ""
                     
-                    // Apply profile-based formatting
-                    let category = ProfileManager.shared.categoryForFrontmostApp()
-                    let formattedText = await TextFormatter.shared.format(rawText, for: category)
+                    // Get app context for smart formatting
+                    let frontApp = NSWorkspace.shared.frontmostApplication
+                    let appName = frontApp?.localizedName
+                    let category = ProfileManager.shared.category(for: frontApp?.bundleIdentifier)
+                    
+                    // Apply universal smart formatting with app context
+                    let formattedText = await TextFormatter.shared.format(rawText, appName: appName, category: category)
                     
                     await MainActor.run {
                         if !formattedText.isEmpty {
