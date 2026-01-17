@@ -7,7 +7,7 @@ class TextFormatter {
     
     private init() {}
     
-    // MARK: - Main Format Function (Universal Smart Formatting)
+    // MARK: - Main Format Function (LLM-powered with Gemma 2)
     
     func format(_ text: String, appName: String?, category: ProfileCategory) async -> String {
         do {

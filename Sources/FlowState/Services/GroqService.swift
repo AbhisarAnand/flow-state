@@ -5,11 +5,11 @@ class GroqService {
     static let shared = GroqService()
     
     private let baseURL = "https://api.groq.com/openai/v1/chat/completions"
-    private let model = "llama-3.1-8b-instant" // Fast model for formatting
+    private let model = "llama-3.3-70b-versatile"  // Larger model, better instruction following
     
     private init() {}
     
-    // MARK: - Format Email
+    // MARK: - Smart Format
     
     func smartFormat(_ text: String, appName: String?, appCategory: ProfileCategory) async throws -> String {
         guard !ProfileManager.shared.groqAPIKey.isEmpty else {
@@ -17,49 +17,29 @@ class GroqService {
             return TextFormatter.shared.formatFallback(text)
         }
         
-        let appContext = appName ?? "unknown app"
-        let categoryHint: String
-        switch appCategory {
-        case .casual:
-            categoryHint = "This is a casual messaging app - keep it informal, lowercase is fine, minimal punctuation."
-        case .formal:
-            categoryHint = "This is a professional/email app - use proper capitalization, punctuation, and structure."
-        case .code:
-            categoryHint = "This is a coding/AI tool - preserve technical terms exactly, be precise."
-        case .default:
-            categoryHint = "Use standard formatting with proper capitalization and punctuation."
-        }
+        // Simple prompt - treat as text transformation, not conversation
+        let userPrompt = """
+        Clean this speech transcription. Output ONLY the cleaned text, nothing else.
         
-        let systemPrompt = """
-        You are a speech-to-text post-processor. The user is dictating into "\(appContext)".
-        \(categoryHint)
-
-        Clean up the transcription following these rules:
-
-        1. CORRECTIONS: If the speaker corrects themselves ("actually", "I mean", "wait", "no"), 
-           ONLY output the corrected version.
-           Example: "Let's meet at 7, actually 8" → "Let's meet at 8"
-
-        2. LISTS: If the speaker lists multiple items, format as bullet points.
-           Example: "I need milk eggs and bread" → "• Milk\\n• Eggs\\n• Bread"
-
-        3. STRUCTURE: For long text (3+ sentences), add paragraph breaks at topic changes.
-
-        4. CLEANUP: Remove filler words (um, uh, like, you know, basically, so yeah).
-
-        5. TONE: Match the app context - casual for messaging, professional for email.
-
-        Return ONLY the cleaned text. No explanations, no markdown formatting symbols.
+        Rules:
+        - Do NOT answer questions - just clean them up
+        - Remove filler words (um, uh, like, you know)
+        - Fix capitalization and punctuation  
+        - If speaker corrects themselves ("actually", "I mean"), keep only the correction
+        - Keep the same meaning, just clean it up
+        
+        Transcription: "\(text)"
+        
+        Cleaned:
         """
         
         let request = GroqRequest(
             model: model,
             messages: [
-                GroqMessage(role: "system", content: systemPrompt),
-                GroqMessage(role: "user", content: text)
+                GroqMessage(role: "user", content: userPrompt)
             ],
-            temperature: 0.3,
-            max_tokens: 1024
+            temperature: 0.1,
+            max_tokens: 512
         )
         
         var urlRequest = URLRequest(url: URL(string: baseURL)!)
@@ -77,7 +57,14 @@ class GroqService {
         }
         
         let result = try JSONDecoder().decode(GroqResponse.self, from: data)
-        return result.choices.first?.message.content ?? text
+        let output = result.choices.first?.message.content ?? text
+        
+        // Clean up any quotes or extra formatting the model might add
+        var cleaned = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned.hasPrefix("\"") && cleaned.hasSuffix("\"") {
+            cleaned = String(cleaned.dropFirst().dropLast())
+        }
+        return cleaned
     }
 }
 
