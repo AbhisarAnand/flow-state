@@ -401,16 +401,246 @@ struct APIKeySheet: View {
 }
 
 struct DataView: View {
+    @ObservedObject var metricsManager = MetricsManager.shared
+    
     var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "waveform.path.ecg")
-                .font(.system(size: 60))
-                .foregroundStyle(.pink)
-            Text("Performance Data")
-                .font(.title)
-            Text("Latency charts and model metrics (Coming Soon)")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                // Title
+                Text("Performance Data")
+                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.primary, .secondary],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                
+                // Summary Stats
+                if !metricsManager.metrics.isEmpty {
+                    HStack(spacing: 16) {
+                        StatCard(title: "Avg Transcription", value: String(format: "%.2fs", metricsManager.averageTranscriptionTime), color: .blue)
+                        StatCard(title: "Avg LLM", value: String(format: "%.2fs", metricsManager.averageLLMTime), color: .purple)
+                        StatCard(title: "Avg Total", value: String(format: "%.2fs", metricsManager.averageTotalTime), color: .green)
+                        StatCard(title: "Requests", value: "\(metricsManager.metrics.count)", color: .orange)
+                    }
+                }
+                
+                // Metrics Table
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Label("Request History", systemImage: "clock.arrow.circlepath")
+                            .font(.headline)
+                        Spacer()
+                        Button("Clear All") {
+                            metricsManager.clear()
+                        }
+                        .foregroundStyle(.red)
+                        .disabled(metricsManager.metrics.isEmpty)
+                    }
+                    
+                    if metricsManager.metrics.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "waveform.path.ecg")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.secondary)
+                            Text("No data yet")
+                                .foregroundStyle(.secondary)
+                            Text("Start transcribing to see performance metrics")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(40)
+                    } else {
+                        // Table Header
+                        HStack(spacing: 12) {
+                            Text("Time").frame(width: 65, alignment: .leading)
+                            
+                            // Models
+                            Group {
+                                Text("Audio Model").frame(width: 90, alignment: .leading)
+                                Text("Text Model").frame(width: 90, alignment: .leading)
+                            }
+                            
+                            // Timings
+                            Group {
+                                Text("Audio").frame(width: 50, alignment: .trailing)
+                                Text("Text").frame(width: 50, alignment: .trailing)
+                                Text("Lag").frame(width: 50, alignment: .trailing)
+                                Text("Total").frame(width: 55, alignment: .trailing)
+                            }
+                            
+                            Text("Content").frame(minWidth: 100, alignment: .leading)
+                        }
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 12)
+                        
+                        Divider()
+                        
+                        // Table Rows
+                        LazyVStack(spacing: 4) {
+                            ForEach(metricsManager.metrics) { metric in
+                                MetricRow(metric: metric)
+                            }
+                        }
+                    }
+                }
+                .glassCard()
+            }
+            .padding(24)
+        }
+    }
+}
+
+struct StatCard: View {
+    let title: String
+    let value: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(value)
+                .font(.title2.bold())
+                .foregroundStyle(color)
+            Text(title)
+                .font(.caption)
                 .foregroundStyle(.secondary)
         }
+        .frame(maxWidth: .infinity)
+        .padding(12)
+        .background(color.opacity(0.1))
+        .cornerRadius(10)
+    }
+}
+
+struct MetricRow: View {
+    let metric: TranscriptionMetric
+    @State private var isExpanded = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                Text(metric.timestamp, style: .time)
+                    .font(.caption.monospacedDigit())
+                    .frame(width: 65, alignment: .leading)
+                    .foregroundStyle(.secondary)
+                
+                // Models
+                Group {
+                    Text(shortModelName(metric.whisperModel))
+                        .font(.caption)
+                        .frame(width: 90, alignment: .leading)
+                        .foregroundStyle(.blue)
+                        .lineLimit(1)
+                    
+                    Text(shortModelName(metric.llmModel))
+                        .font(.caption)
+                        .frame(width: 90, alignment: .leading)
+                        .foregroundStyle(.purple)
+                        .lineLimit(1)
+                }
+                
+                // Timings
+                Group {
+                    Text(String(format: "%.1fs", metric.transcriptionTime))
+                        .font(.caption.monospacedDigit())
+                        .frame(width: 50, alignment: .trailing)
+                        .foregroundStyle(.blue.opacity(0.8))
+                    
+                    Text(String(format: "%.1fs", metric.llmFormattingTime))
+                        .font(.caption.monospacedDigit())
+                        .frame(width: 50, alignment: .trailing)
+                        .foregroundStyle(.purple.opacity(0.8))
+                    
+                    Text(String(format: "%.1fs", metric.overheadTime))
+                        .font(.caption.monospacedDigit())
+                        .frame(width: 50, alignment: .trailing)
+                        .foregroundStyle(.orange.opacity(0.8))
+                    
+                    Text(String(format: "%.1fs", metric.totalProcessingTime))
+                        .font(.caption.monospacedDigit().bold())
+                        .frame(width: 55, alignment: .trailing)
+                        .foregroundStyle(.green)
+                }
+                
+                Text(metric.formattedText)
+                    .font(.caption)
+                    .foregroundStyle(.primary.opacity(0.8))
+                    .frame(minWidth: 100, alignment: .leading)
+                    .lineLimit(1)
+                
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(isExpanded ? Color.white.opacity(0.05) : Color.white.opacity(0.02))
+            .cornerRadius(8)
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
+            }
+            
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Recording Duration").font(.caption2).foregroundStyle(.secondary)
+                            Text(String(format: "%.2f seconds", metric.recordingDuration)).font(.caption)
+                        }
+                        Spacer()
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Input Length").font(.caption2).foregroundStyle(.secondary)
+                            Text("\(metric.inputLength) chars").font(.caption)
+                        }
+                        Spacer()
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Output Length").font(.caption2).foregroundStyle(.secondary)
+                            Text("\(metric.outputLength) chars").font(.caption)
+                        }
+                    }
+                    
+                    Divider()
+                    
+                    Text("Raw Transcription").font(.caption2).foregroundStyle(.secondary)
+                    Text(metric.rawText)
+                        .font(.caption)
+                        .padding(8)
+                        .background(Color.white.opacity(0.03))
+                        .cornerRadius(6)
+                    
+                    Text("Formatted Output").font(.caption2).foregroundStyle(.secondary)
+                    Text(metric.formattedText)
+                        .font(.caption)
+                        .padding(8)
+                        .background(Color.white.opacity(0.03))
+                        .cornerRadius(6)
+                }
+                .padding(12)
+                .background(Color.white.opacity(0.02))
+                .cornerRadius(8)
+                .padding(.leading, 8)
+            }
+        }
+    }
+    
+    func shortModelName(_ name: String) -> String {
+        // Shorten model names for display
+        if name.contains("70b") { return "70B" }
+        if name.contains("Turbo") || name.contains("turbo") { return "Turbo" }
+        if name.contains("Large") { return "Large" }
+        if name.contains("medium") { return "Medium" }
+        if name.contains("small") { return "Small" }
+        if name.contains("base") { return "Base" }
+        if name.contains("tiny") { return "Tiny" }
+        if name.contains("Distil") { return "Distil" }
+        return String(name.prefix(10))
     }
 }
 

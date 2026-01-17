@@ -34,15 +34,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 let duration = Double(samples.count) / 16000.0 // Duration in Seconds
                 
                 Task {
+                    let totalStart = CFAbsoluteTimeGetCurrent()
+                    
+                    // Measure transcription time
+                    let transcribeStart = CFAbsoluteTimeGetCurrent()
                     let rawText = await self?.transcriptionManager.transcribe(audioSamples: samples) ?? ""
+                    let transcribeTime = CFAbsoluteTimeGetCurrent() - transcribeStart
                     
                     // Get app context for smart formatting
                     let frontApp = NSWorkspace.shared.frontmostApplication
                     let appName = frontApp?.localizedName
                     let category = ProfileManager.shared.category(for: frontApp?.bundleIdentifier)
                     
-                    // Apply universal smart formatting with app context
+                    // Apply universal smart formatting with app context (LLM time tracked inside GroqService)
                     let formattedText = await TextFormatter.shared.format(rawText, appName: appName, category: category)
+                    
+                    let totalEnd = CFAbsoluteTimeGetCurrent()
+                    let totalTime = totalEnd - totalStart
+                    
+                    // Record metrics
+                    let metric = TranscriptionMetric(
+                        whisperModel: AppState.shared.selectedModel,
+                        llmModel: GroqService.modelName,
+                        recordingDuration: duration,
+                        transcriptionTime: transcribeTime,
+                        llmFormattingTime: GroqService.lastLLMTime,
+                        totalProcessingTime: totalTime,
+                        rawText: rawText,
+                        formattedText: formattedText
+                    )
+                    MetricsManager.shared.add(metric)
                     
                     await MainActor.run {
                         if !formattedText.isEmpty {

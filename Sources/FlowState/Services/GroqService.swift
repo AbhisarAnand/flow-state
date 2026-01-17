@@ -7,6 +7,10 @@ class GroqService {
     private let baseURL = "https://api.groq.com/openai/v1/chat/completions"
     private let model = "llama-3.3-70b-versatile"  // Larger model, better instruction following
     
+    // Metrics tracking
+    static var lastLLMTime: Double = 0
+    static var modelName: String { shared.model }
+    
     private init() {}
     
     // MARK: - Smart Format
@@ -54,10 +58,15 @@ class GroqService {
         urlRequest.httpBody = try JSONEncoder().encode(request)
         urlRequest.timeoutInterval = 5.0
         
+        // Measure LLM API time
+        let llmStart = CFAbsoluteTimeGetCurrent()
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        let llmEnd = CFAbsoluteTimeGetCurrent()
+        GroqService.lastLLMTime = llmEnd - llmStart
         
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             print("[GroqService] API error, using fallback")
+            GroqService.lastLLMTime = 0
             return TextFormatter.shared.formatFallback(text)
         }
         
