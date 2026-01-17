@@ -17,19 +17,24 @@ class GroqService {
             return TextFormatter.shared.formatFallback(text)
         }
         
-        // Simple prompt - treat as text transformation, not conversation
+        // Improved prompt with email formatting rules
         let userPrompt = """
-        Clean this speech transcription. Output ONLY the cleaned text, nothing else.
-        
+        Clean this speech transcription. Output ONLY the cleaned text.
+
         Rules:
-        - Do NOT answer questions - just clean them up
-        - Remove filler words (um, uh, like, you know)
-        - Fix capitalization and punctuation  
+        - Remove filler words (um, uh, like, you know, basically, so)
+        - Fix capitalization and punctuation
         - If speaker corrects themselves ("actually", "I mean"), keep only the correction
-        - Keep the same meaning, just clean it up
+        - Do NOT answer questions - if input is a question, output the cleaned question
         
+        Email formatting (if the text looks like an email):
+        - Put greeting (Hi/Hey/Dear + name) on its own line, followed by a blank line
+        - Separate distinct topics into paragraphs with blank lines between them
+        - Format numbered points or lists clearly (1. 2. 3. or bullet points)
+        - Put sign-off and signature on separate lines at the end (e.g., "Thanks,\\nName" or "Best,\\nName")
+
         Transcription: "\(text)"
-        
+
         Cleaned:
         """
         
