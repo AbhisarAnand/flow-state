@@ -3,22 +3,22 @@
     <channel>
         <title>FlowState</title>
         <item>
-            <title>2.0</title>
-            <pubDate>Thu, 15 Jan 2026 15:45:00 +0000</pubDate>
+            <title>2.0.0</title>
+            <pubDate>Thu, 15 Jan 2026 14:00:00 +0000</pubDate>
             <sparkle:version>1</sparkle:version>
-            <sparkle:shortVersionString>2.0</sparkle:shortVersionString>
+            <sparkle:shortVersionString>2.0.0</sparkle:shortVersionString>
             <enclosure url="https://github.com/AbhisarAnand/flow-state/releases/download/v2.0.0/FlowState_Installer.dmg"
-                       sparkle:edSignature="aw7jVX47e6eLw/keZaYj1qcV7JgM/0kjD+mKljjR4wFBbPzd4kWNoU1jLi2HFx/GLdQtk2q9qhbdXHnlnp5jDA=="
-                       length="34334052"
+                       sparkle:edSignature="+9Eli0fwJZseFC0E01C0MFOWwlttmHNgRMeubC6z3gIdw4FPRorW8kjYan4ppWbK9XiBuxhqU1jpVfwF0xlNDQ=="
+                       length="28082549"
                        type="application/octet-stream"/>
             <description>
                 <![CDATA[
-                <h2>FlowState 2.0</h2>
+                <h2>FlowState 2.0 (Velocity Update)</h2>
                 <ul>
-                    <li>Complete Dashboard Overhaul</li>
-                    <li>Automatic Updates via Sparkle</li>
-                    <li>Formatted DMG Installer</li>
-                    <li>Keybind Fixes</li>
+                    <li>New UI: Glassmorphism Dashboard with Flow Gauge</li>
+                    <li>Stats: Time Saved & Total Words tracking</li>
+                    <li>Fix: Auto-Updates now signed & functioning</li>
+                    <li>Feature: Fn Key & Fn+Space shortcuts</li>
                 </ul>
                 ]]>
             </description>

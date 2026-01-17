@@ -7,7 +7,7 @@ struct FlowStateApp: App {
     var body: some Scene {
         WindowGroup {
             DashboardView()
-                .frame(minWidth: 800, minHeight: 600)
+                .frame(minWidth: 1100, minHeight: 800)
         }
         .windowStyle(.hiddenTitleBar)
         .commands {

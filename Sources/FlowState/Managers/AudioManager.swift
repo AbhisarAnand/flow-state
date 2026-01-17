@@ -1,56 +1,86 @@
 import Foundation
 import AVFoundation
+import Accelerate
 
 class AudioManager: NSObject, ObservableObject {
     static let shared = AudioManager()
     
     private var audioEngine: AVAudioEngine?
     private var inputNode: AVAudioInputNode?
+    
     @Published var isRecording = false
     
-    var audioBuffer: [Float] = []
+    // Buffer to hold float samples (32-bit, 16kHz)
+    private var audioBuffer: [Float] = []
+    private let sampleRate: Double = 16000.0 // Whisper native
+    private var noiseFloors: [Float] = Array(repeating: -60.0, count: 8) // Adaptive Floor Tracker
     
-    // Converter state
     private var converter: AVAudioConverter?
     private var targetFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16000, channels: 1, interleaved: false)!
     
+    // FFT State
+    private let fftSetup = vDSP_create_fftsetup(10, FFTRadix(FFT_RADIX2)) // 1024 samples
+    private var fftRealPart = [Float](repeating: 0, count: 512)
+    private var fftImagPart = [Float](repeating: 0, count: 512)
+    
+    // Check permissions only
     func checkPermissions() {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
-        case .authorized: break
+        case .authorized:
+            setupAudio()
         case .notDetermined:
-            AVCaptureDevice.requestAccess(for: .audio) { _ in }
-        default: break
+            AVCaptureDevice.requestAccess(for: .audio) { granted in
+                if granted { self.setupAudio() }
+            }
+        default:
+            print("Microphone access denied.")
+        }
+    }
+    
+    private func setupAudio() {
+        guard let audioEngine = self.audioEngine, let inputNode = self.inputNode else {
+            print("[AudioManager] Audio engine or input node not initialized.")
+            return
+        }
+        
+        // Removed setVoiceProcessingEnabled(true) to avoid transcription failure.
+        // The signal chain for "installTap" is fragile with VPIO enabled on some Macs.
+        
+        let format = inputNode.outputFormat(forBus: 0)
+        
+        // Setup Converter to 16kHz
+        guard let freqConverter = AVAudioConverter(from: format, to: targetFormat) else {
+            print("[AudioManager] Could not create audio converter")
+            return
+        }
+        self.converter = freqConverter
+        
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, time in
+            self.processAudioBuffer(buffer)
+        }
+        
+        audioEngine.prepare()
+        
+        do {
+            try audioEngine.start()
+            DispatchQueue.main.async { self.isRecording = true }
+            print("[AudioManager] 🔴 Started recording at \(format.sampleRate)Hz -> Resampling to 16000Hz")
+        } catch {
+            print("[AudioManager] ❌ Audio Engine failed to start: \(error)")
         }
     }
     
     func startRecording() {
-        checkPermissions()
         stopRecording() // Safety reset
         
         audioBuffer.removeAll()
+        AppState.shared.amplitude = 0
+        AppState.shared.fftMagnitudes = Array(repeating: 0.1, count: 16)
         
-        let engine = AVAudioEngine()
-        let input = engine.inputNode
-        let inputFormat = input.outputFormat(forBus: 0)
+        self.audioEngine = AVAudioEngine()
+        self.inputNode = self.audioEngine?.inputNode
         
-        // Initialize Converter
-        // From Input Format -> 16kHz Mono Float
-        self.converter = AVAudioConverter(from: inputFormat, to: targetFormat)
-        
-        input.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { (buffer, time) in
-            // Resample to 16kHz
-            self.processAudioBuffer(buffer)
-        }
-        
-        do {
-            try engine.start()
-            self.audioEngine = engine
-            self.inputNode = input
-            self.isRecording = true
-            print("[AudioManager] Started recording at \(inputFormat.sampleRate)Hz -> Resampling to 16000Hz")
-        } catch {
-            print("[AudioManager] Error starting engine: \(error)")
-        }
+        checkPermissions()
     }
     
     private func processAudioBuffer(_ inputBuffer: AVAudioPCMBuffer) {
@@ -86,22 +116,153 @@ class AudioManager: NSObject, ObservableObject {
             var sum: Float = 0
             for vid in floats { sum += vid * vid }
             let rms = sqrt(sum / Float(processedFrames))
-            let normalized = min(max(rms * 10.0, 0), 1.0) 
+            let normalized = min(max(rms * 10.0, 0), 1.0)
             
-            DispatchQueue.main.async {
-                AppState.shared.amplitude = normalized
+            // --- COMPUTING FFT ---
+            if let fftSetup = self.fftSetup {
+                // We need 1024 samples. processedFrames should ideally be 1024.
+                var inputFloats = Array(floats)
+                if inputFloats.count < 1024 {
+                    inputFloats += Array(repeating: Float(0), count: 1024 - inputFloats.count)
+                } else if inputFloats.count > 1024 {
+                    inputFloats = Array(inputFloats.prefix(1024))
+                }
+                
+                // Safe Pointer Access
+                self.fftRealPart.withUnsafeMutableBufferPointer { realPtr in
+                    self.fftImagPart.withUnsafeMutableBufferPointer { imagPtr in
+                        var splitComplex = DSPSplitComplex(
+                            realp: realPtr.baseAddress!,
+                            imagp: imagPtr.baseAddress!
+                        )
+                        
+                        // Pack Input
+                        inputFloats.withUnsafeBytes { ptr in
+                             let asSplit = ptr.bindMemory(to: DSPComplex.self)
+                             vDSP_ctoz(asSplit.baseAddress!, 2, &splitComplex, 1, 512)
+                        }
+                        
+                        // Perform FFT
+                        vDSP_fft_zrip(fftSetup, &splitComplex, 1, 10, FFTDirection(FFT_FORWARD))
+                        
+                        // Calculate Magnitudes
+                        var magnitudes = [Float](repeating: 0.0, count: 256)
+                        vDSP_zvmags(&splitComplex, 1, &magnitudes, 1, 256)
+                        
+                        // Precise Frequency Mapping: 8 Bands for Human Voice
+                        // Sample Rate: 16000 Hz, FFT: 1024 -> 512 Bins (0-8kHz)
+                        
+                        // USER REQUEST: Zoom In (600Hz - 4kHz).
+                        // 8kHz was too high (right bars were dead).
+                        // New range focuses fully on "Voice Articulation".
+                        
+                        // Start: 600Hz (~Index 38)
+                        // End:   4000Hz (~Index 256)
+                        
+                        let ranges: [(Int, Int)] = [
+                            (38, 50),    // Bar 0: ~600 - 800 Hz
+                            (50, 65),    // Bar 1: ~800 - 1.0k Hz
+                            (65, 85),    // Bar 2: ~1.0k - 1.3k Hz
+                            (85, 110),   // Bar 3: ~1.3k - 1.7k Hz
+                            (110, 140),  // Bar 4: ~1.7k - 2.2k Hz
+                            (140, 180),  // Bar 5: ~2.2k - 2.8k Hz
+                            (180, 220),  // Bar 6: ~2.8k - 3.4k Hz
+                            (220, 256)   // Bar 7: ~3.4k - 4.0k Hz
+                        ]
+                        
+                        var newMags = [Float](repeating: 0.0, count: 8)
+                        
+                        for i in 0..<8 {
+                            let (start, end) = ranges[i]
+                            var magSum: Float = 0
+                            var binCount: Float = 0
+                            
+                            for j in start..<end {
+                                if j < magnitudes.count {
+                                    magSum += magnitudes[j]
+                                    binCount += 1
+                                }
+                            }
+                            
+                            // Average magnitude in this "Note Band"
+                            let avgMag = binCount > 0 ? magSum / binCount : 0
+                            
+                            // USER REQUEST: Removed Spectral Whitening.
+                            // Showing raw Note Magnitude.
+                            
+                            // Log scaling
+                            let db = 10 * log10(max(avgMag, 1e-9))
+                            
+                            // Gate: -35dB Floor, 0dB Ceiling (User Preferred)
+                            let minDb: Float = -35.0
+                            let maxDb: Float = 0.0
+                            
+                            if db < minDb {
+                                newMags[i] = 0.0
+                            } else {
+                                let norm = (db - minDb) / (maxDb - minDb)
+                                let clamped = min(max(norm, 0.0), 1.0)
+                                newMags[i] = clamped * clamped // Square law for punch
+                            }
+                        }
+                        
+                        // Time-Domain Smoothing
+                        let decayFactor: Float = 0.7
+                        
+                        DispatchQueue.main.async {
+                            AppState.shared.amplitude = normalized
+                            
+                             var currentMags = AppState.shared.fftMagnitudes
+                             if currentMags.count != 8 { currentMags = Array(repeating: 0.0, count: 8) }
+                             
+                             for k in 0..<8 {
+                                 let target = newMags[k]
+                                 let old = currentMags[k]
+                                 
+                                 if target > old {
+                                     currentMags[k] = target
+                                 } else {
+                                     currentMags[k] = old * decayFactor + target * (1 - decayFactor)
+                                 }
+                             }
+                            AppState.shared.fftMagnitudes = currentMags
+                        }
+                    }
+                }
             }
         }
     }
     
     func stopRecording() -> [Float] {
-        audioEngine?.stop()
-        inputNode?.removeTap(onBus: 0)
+        if let engine = audioEngine {
+             engine.stop()
+             inputNode?.removeTap(onBus: 0)
+        }
         audioEngine = nil
         inputNode = nil
         converter = nil
         isRecording = false
-        print("[AudioManager] Stopped. Captured \(audioBuffer.count) samples (should be ~16000 per sec)")
+        
+        // --- DIAGNOSTICS (Kept from V2) ---
+        var sum: Float = 0
+        for val in audioBuffer { sum += val * val }
+        let rms = sqrt(sum / Float(max(audioBuffer.count, 1)))
+        let isSilent = rms < 0.001
+        
+        let deviceName = AVCaptureDevice.default(for: .audio)?.localizedName ?? "Unknown Device"
+        
+        let status = "[AudioManager] ⏹️ Stopped. Captured \(audioBuffer.count) samples. RMS: \(String(format: "%.5f", rms)) Device: \(deviceName)"
+        print(status)
+        
+        DispatchQueue.main.async {
+            // Prepend diagnostic to log, but keep model log as primary update target later
+            let quietWarning = isSilent ? "\n⚠️ LOW VOLUME on \(deviceName). Check Settings > Sound." : ""
+            AppState.shared.lastLog = "Audio: \(self.audioBuffer.count)smp | Vol: \(String(format: "%.3f", rms)) | Mic: \(deviceName)\(quietWarning)"
+            AppState.shared.amplitude = 0
+            AppState.shared.fftMagnitudes = Array(repeating: 0.1, count: 16)
+        }
+        // ----------------------------------
+        
         return audioBuffer
     }
 }

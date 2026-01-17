@@ -5,7 +5,7 @@ APP_NAME="FlowState"
 DMG_NAME="${APP_NAME}_Installer"
 VOL_NAME="${APP_NAME}"
 SRC_APP="./${APP_NAME}.app"
-BG_IMG_PATH="Assets/installer_background.png"
+BG_IMG_PATH="./Assets/installer_background.png"
 
 # Verify .app exists
 if [ ! -d "$SRC_APP" ]; then
@@ -36,11 +36,12 @@ echo "📂 Setting up DMG structure..."
 # Link to Applications
 ln -s /Applications "${MOUNT_DIR}/Applications"
 
-# Background Image
+# Background Image Logic
+HAS_BG=false
 mkdir -p "${MOUNT_DIR}/.background"
-# Use the generated background if available, else skip
 if [ -f "$BG_IMG_PATH" ]; then
     cp "$BG_IMG_PATH" "${MOUNT_DIR}/.background/background.png"
+    HAS_BG=true
 else
     echo "⚠️ Warning: Background image not found at $BG_IMG_PATH"
 fi
@@ -68,7 +69,10 @@ tell application \"Finder\"
         set theViewOptions to the icon view options of container window
         set arrangement of theViewOptions to not arranged
         set icon size of theViewOptions to 100
-        set background picture of theViewOptions to file \".background:background.png\"
+        
+        if ${HAS_BG} then
+            set background picture of theViewOptions to file \".background:background.png\"
+        end if
         
         -- Position Icons (Centered Vertically at 144)
         -- Width is 500. Middle is 250.
@@ -98,4 +102,4 @@ hdiutil convert "pack.temp.dmg" -format UDZO -imagekey zlib-level=9 -o "${DMG_NA
 rm -f "pack.temp.dmg"
 
 echo "✅ DMG Created: ${DMG_NAME}.dmg"
-# open  .  # Don't auto open
+open .

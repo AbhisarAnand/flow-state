@@ -17,8 +17,9 @@ class TranscriptionManager {
         
         DispatchQueue.main.async {
             AppState.shared.isModelLoading = true
+            AppState.shared.isModelReady = false // Reset readiness
             AppState.shared.loadingProgress = "Switching to \(modelName)..."
-            AppState.shared.selectedModel = modelName
+            // AppState.shared.selectedModel = modelName  <-- REMOVED to prevent overwriting preference on Fallback
         }
         
         do {
@@ -43,11 +44,13 @@ class TranscriptionManager {
             // I will inject logic to set the storage directory if possible.
             
             // Map friendly names to actual model IDs
+            // Map friendly names to actual model IDs
+            // Source: argmaxinc/whisperkit-coreml
             var actualModelName = modelName
             if modelName == "Distil Large v3" {
                 actualModelName = "distil-whisper_distil-large-v3"
             } else if modelName == "Large v3 Turbo" {
-                actualModelName = "openai_whisper-large-v3-turbo"
+                actualModelName = "openai_whisper-large-v3_turbo" // Underscore updated
             }
             
             // Let's try init with `assetsPath` if valid.
@@ -57,16 +60,29 @@ class TranscriptionManager {
             
             DispatchQueue.main.async {
                 AppState.shared.isModelLoading = false
-                AppState.shared.loadingProgress = "Ready"
+                AppState.shared.isModelReady = true // Mark as Ready
+                AppState.shared.loadingProgress = "Ready (\(modelName))"
             }
             print("[TranscriptionManager] ✅ Model Loaded: \(modelName)")
         } catch {
             print("[TranscriptionManager] ❌ Error loading \(modelName): \(error)")
+            
             DispatchQueue.main.async {
-                AppState.shared.isModelLoading = false
-                AppState.shared.loadingProgress = "Error"
+                AppState.shared.lastLog = "Error loading \(modelName): \(error.localizedDescription)\nSwitching to Base..."
+                AppState.shared.loadingProgress = "Retrying with Base Model..."
+            }
+            
+            // Fallback to base if not already base
+            if modelName != "base.en" {
+                await loadModel(named: "base.en")
+            } else {
+                DispatchQueue.main.async {
+                     AppState.shared.isModelLoading = false
+                     AppState.shared.loadingProgress = "Failed to load Base."
+                }
             }
         }
+
     }
     
     func transcribe(audioSamples: [Float]) async -> String {

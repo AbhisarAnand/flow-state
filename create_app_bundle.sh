@@ -46,7 +46,7 @@ cat <<EOF > "${APP_BUNDLE}/Contents/Info.plist"
     <key>CFBundleName</key>
     <string>${APP_NAME}</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>2.0.0</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>LSUIElement</key>
@@ -80,25 +80,25 @@ EOF
 # fi
 
 # Generate AppIcon.icns
-if [ -f "logo.png" ]; then
+if [ -f "Assets/logo.png" ]; then
     echo "🎨 Generating AppIcon.icns..."
     mkdir -p AppIcon.iconset
-    sips -z 16 16     -s format png logo.png --out AppIcon.iconset/icon_16x16.png > /dev/null
-    sips -z 32 32     -s format png logo.png --out AppIcon.iconset/icon_16x16@2x.png > /dev/null
-    sips -z 32 32     -s format png logo.png --out AppIcon.iconset/icon_32x32.png > /dev/null
-    sips -z 64 64     -s format png logo.png --out AppIcon.iconset/icon_32x32@2x.png > /dev/null
-    sips -z 128 128   -s format png logo.png --out AppIcon.iconset/icon_128x128.png > /dev/null
-    sips -z 256 256   -s format png logo.png --out AppIcon.iconset/icon_128x128@2x.png > /dev/null
-    sips -z 256 256   -s format png logo.png --out AppIcon.iconset/icon_256x256.png > /dev/null
-    sips -z 512 512   -s format png logo.png --out AppIcon.iconset/icon_256x256@2x.png > /dev/null
-    sips -z 512 512   -s format png logo.png --out AppIcon.iconset/icon_512x512.png > /dev/null
-    sips -z 1024 1024 -s format png logo.png --out AppIcon.iconset/icon_512x512@2x.png > /dev/null
+    sips -z 16 16     -s format png Assets/logo.png --out AppIcon.iconset/icon_16x16.png > /dev/null
+    sips -z 32 32     -s format png Assets/logo.png --out AppIcon.iconset/icon_16x16@2x.png > /dev/null
+    sips -z 32 32     -s format png Assets/logo.png --out AppIcon.iconset/icon_32x32.png > /dev/null
+    sips -z 64 64     -s format png Assets/logo.png --out AppIcon.iconset/icon_32x32@2x.png > /dev/null
+    sips -z 128 128   -s format png Assets/logo.png --out AppIcon.iconset/icon_128x128.png > /dev/null
+    sips -z 256 256   -s format png Assets/logo.png --out AppIcon.iconset/icon_128x128@2x.png > /dev/null
+    sips -z 256 256   -s format png Assets/logo.png --out AppIcon.iconset/icon_256x256.png > /dev/null
+    sips -z 512 512   -s format png Assets/logo.png --out AppIcon.iconset/icon_256x256@2x.png > /dev/null
+    sips -z 512 512   -s format png Assets/logo.png --out AppIcon.iconset/icon_512x512.png > /dev/null
+    sips -z 1024 1024 -s format png Assets/logo.png --out AppIcon.iconset/icon_512x512@2x.png > /dev/null
     
     iconutil -c icns AppIcon.iconset
     cp AppIcon.icns "${APP_BUNDLE}/Contents/Resources/"
     
     # Also copy PNG for UI usage
-    cp logo.png "${APP_BUNDLE}/Contents/Resources/AppIcon-UI.png"
+    cp Assets/logo.png "${APP_BUNDLE}/Contents/Resources/AppIcon-UI.png"
     rm -rf AppIcon.iconset
 fi
 
@@ -114,5 +114,3 @@ echo "✅ App Bundle created at ./${APP_BUNDLE}"
 
 echo "💿 Creating Styled DMG..."
 ./create_dmg.sh
-
-

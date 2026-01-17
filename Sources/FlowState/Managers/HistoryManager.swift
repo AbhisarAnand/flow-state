@@ -23,28 +23,41 @@ class HistoryManager: ObservableObject {
         
         let typingSpeed = Double(AppState.shared.userTypingSpeed) // e.g., 40 WPM
         let timeToTypeSeconds = Double(totalWords) / (typingSpeed / 60.0) // Words / WPS
+        // Use the adjusted duration method to account for legacy items
+        let actualDurationSeconds = adjustedDuration
         
-        let actualDurationSeconds = history.reduce(0) { $0 + $1.duration }
-        
-        // If legacy items have 0 duration, we might underestimate spoken time (creating artificially high saved time),
-        // but that's acceptable for a V1 migration. Alternatively we could estimate old items at 150wpm.
-        // Let's implement a safe fallback: if duration is 0, assume 150wpm for that item.
-        
-        let adjustedDuration = history.reduce(0.0) { result, item in
-            if item.duration > 0 {
-                return result + item.duration
-            } else {
-                // Fallback for legacy items: assume 150 wpm
-                let words = Double(item.text.split(separator: " ").count)
-                return result + (words / (150.0 / 60.0))
-            }
-        }
-        
-        let savedSeconds = timeToTypeSeconds - adjustedDuration
+        let savedSeconds = timeToTypeSeconds - actualDurationSeconds
         let savedMinutes = savedSeconds / 60.0
         
         if savedMinutes < 0.1 { return "0 mins" }
         return String(format: "%.1f mins", savedMinutes)
+    }
+    
+    // Helper for time saved
+    private var adjustedDuration: TimeInterval {
+        history.reduce(0.0) { result, item in
+            if item.duration > 0 {
+                return result + item.duration
+            } else {
+                // Fallback for legacy items: assume 150 wpm for them
+                let words = Double(item.text.split(separator: " ").count)
+                return result + (words / (150.0 / 60.0))
+            }
+        }
+    }
+    
+    // Dynamic Spoken WPM (Average of all sessions)
+    // If empty, return 0
+    var averageSpokenWPM: Int {
+        guard !history.isEmpty else { return 0 }
+        
+        let totalW = Double(totalWords)
+        let totalSec = adjustedDuration
+        
+        guard totalSec > 0 else { return 0 }
+        
+        // Words per minute
+        return Int(totalW / (totalSec / 60.0))
     }
     
     // ... historyFileURL properties

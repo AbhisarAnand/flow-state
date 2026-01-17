@@ -16,6 +16,7 @@ class UpdateManager: NSObject, ObservableObject, SPUUpdaterDelegate {
     
     func checkForUpdates() {
         print("[UpdateManager] 🔄 Checking for updates...")
+        print("[UpdateManager] Current Feed URL: \(String(describing: updaterController.updater.feedURL))")
         updaterController.checkForUpdates(nil)
     }
     

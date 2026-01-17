@@ -15,6 +15,7 @@ class AppState: ObservableObject {
     @Published var notificationText = ""
     @Published var isAccessibilityGranted = false
     @Published var amplitude: Float = 0.0
+    @Published var fftMagnitudes: [Float] = Array(repeating: 0.1, count: 8) // 8 Frequency Bands for UI
     
     @Published var selectedModel: String {
         didSet {
@@ -33,6 +34,7 @@ class AppState: ObservableObject {
     }    
 
     @Published var isModelLoading: Bool = false
+    @Published var isModelReady: Bool = false // New: Tracks confirmed loaded state
     @Published var loadingProgress: String = "" // "Downloading 50%..."
     @Published var lastLog: String = "No logs yet."
     

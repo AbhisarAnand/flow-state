@@ -6,15 +6,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @ObservedObject var appState = AppState.shared
     
     // Managers
-    let hotkeyManager = HotkeyManager()
-    let transcriptionManager = TranscriptionManager()
+    let hotkeyManager = HotkeyManager.shared
+    let transcriptionManager = TranscriptionManager.shared
     let audioManager = AudioManager.shared
     let outputManager = OutputManager.shared
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenuBar()
         setupHotkeys()
-        audioManager.startRecording()
+        
+        // Removed audioManager.startSession() -> Reverted to PTT-only engine start.
         
         hotkeyManager.onHotkeyPressed = { [weak self] in
             print("PTT Pressed")
@@ -74,8 +75,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     @objc func openDashboard() {
         NSApp.activate(ignoringOtherApps: true)
-        if let window = NSApp.windows.first {
-            window.makeKeyAndOrderFront(nil)
+        
+        // Try to find an existing dashboard window
+        // Excluding the overlay window if possible (Overlay is typically NSPanel or specific level)
+        let windows = NSApp.windows.filter { window in
+            return window.isVisible || window.isMiniaturized
+        }
+        
+        if let mainWindow = windows.first(where: { $0.title != "" && $0.className != "NSStatusBarWindow" }) {
+            if mainWindow.isMiniaturized {
+                mainWindow.deminiaturize(nil)
+            }
+            mainWindow.makeKeyAndOrderFront(nil)
+        } else {
+            // If no window is found (it was closed), we need to rely on SwiftUI's reopen behavior
+            // or trigger it via URL if configured.
+            // Fallback: Trigger standard app activation which usually reopens main window
+            // for "Reopen on activate" apps.
+             NSApp.arrangeInFront(nil)
         }
     }
     
