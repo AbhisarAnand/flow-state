@@ -34,11 +34,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 let duration = Double(samples.count) / 16000.0 // Duration in Seconds
                 
                 Task {
-                    let text = await self?.transcriptionManager.transcribe(audioSamples: samples) ?? ""
+                    let rawText = await self?.transcriptionManager.transcribe(audioSamples: samples) ?? ""
+                    
+                    // Apply profile-based formatting
+                    let category = ProfileManager.shared.categoryForFrontmostApp()
+                    let formattedText = await TextFormatter.shared.format(rawText, for: category)
+                    
                     await MainActor.run {
-                        if !text.isEmpty {
-                            self?.outputManager.pasteText(text)
-                            HistoryManager.shared.add(text, duration: duration)
+                        if !formattedText.isEmpty {
+                            self?.outputManager.pasteText(formattedText)
+                            HistoryManager.shared.add(formattedText, duration: duration)
                         }
                         self?.appState.state = .idle
                         OverlayManager.shared.hide()

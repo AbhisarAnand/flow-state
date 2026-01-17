@@ -167,15 +167,235 @@ struct HomeViewV2: View {
 }
 
 struct ProfilesView: View {
+    @ObservedObject var profileManager = ProfileManager.shared
+    @State private var searchText = ""
+    @State private var showingAPIKeySheet = false
+    
+    var filteredApps: [AppProfile] {
+        if searchText.isEmpty {
+            return profileManager.appProfiles.sorted { $0.name < $1.name }
+        }
+        return profileManager.appProfiles
+            .filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+            .sorted { $0.name < $1.name }
+    }
+    
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                // Title
+                Text("App Profiles")
+                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.primary, .secondary],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                
+                // Description
+                Text("Assign formatting profiles to apps. When you transcribe, the text will be formatted based on the active app.")
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, 8)
+                
+                // Category Legend
+                HStack(spacing: 16) {
+                    ForEach(ProfileCategory.allCases) { category in
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(categoryColor(category))
+                                .frame(width: 10, height: 10)
+                            Text(category.rawValue)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 4)
+                
+                // Groq API Key Section
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("Groq API Key (for Formal formatting)", systemImage: "key.fill")
+                        .font(.headline)
+                    
+                    HStack {
+                        if profileManager.groqAPIKey.isEmpty {
+                            Text("Not configured")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("••••••••••••\(profileManager.groqAPIKey.suffix(4))")
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button(profileManager.groqAPIKey.isEmpty ? "Add Key" : "Change") {
+                            showingAPIKeySheet = true
+                        }
+                    }
+                    
+                    Text("Get your free API key at console.groq.com")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .glassCard()
+                
+                // Search Bar
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Search apps...", text: $searchText)
+                        .textFieldStyle(.plain)
+                }
+                .padding(10)
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(10)
+                
+                // App List
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("Assigned Apps (\(filteredApps.count))", systemImage: "app.badge.checkmark.fill")
+                        .font(.headline)
+                    
+                    LazyVStack(spacing: 8) {
+                        ForEach(filteredApps) { app in
+                            AppProfileRow(app: app)
+                        }
+                    }
+                }
+                .glassCard()
+                
+                // Actions
+                HStack {
+                    Button("Reset to Defaults") {
+                        profileManager.resetToDefaults()
+                    }
+                    .foregroundStyle(.red)
+                    
+                    Spacer()
+                    
+                    Button("Discover Apps") {
+                        let discovered = profileManager.discoverInstalledApps()
+                        // Merge discovered apps
+                        for app in discovered {
+                            if !profileManager.appProfiles.contains(where: { $0.id == app.id }) {
+                                profileManager.appProfiles.append(app)
+                            }
+                        }
+                    }
+                }
+                .padding(.top, 8)
+            }
+            .padding(24)
+        }
+        .sheet(isPresented: $showingAPIKeySheet) {
+            APIKeySheet()
+        }
+    }
+    
+    func categoryColor(_ category: ProfileCategory) -> Color {
+        switch category {
+        case .casual: return .green
+        case .formal: return .blue
+        case .code: return .purple
+        case .default: return .gray
+        }
+    }
+}
+
+struct AppProfileRow: View {
+    let app: AppProfile
+    @ObservedObject var profileManager = ProfileManager.shared
+    
+    var body: some View {
+        HStack {
+            Circle()
+                .fill(categoryColor(app.category))
+                .frame(width: 8, height: 8)
+            
+            Text(app.name)
+                .fontWeight(.medium)
+            
+            Spacer()
+            
+            Menu {
+                ForEach(ProfileCategory.allCases) { category in
+                    Button(action: {
+                        profileManager.updateCategory(for: app.id, to: category)
+                    }) {
+                        if app.category == category {
+                            Label(category.rawValue, systemImage: "checkmark")
+                        } else {
+                            Text(category.rawValue)
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(app.category.rawValue)
+                        .foregroundStyle(.secondary)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.vertical, 4)
+                .padding(.horizontal, 8)
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(6)
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 6)
+    }
+    
+    func categoryColor(_ category: ProfileCategory) -> Color {
+        switch category {
+        case .casual: return .green
+        case .formal: return .blue
+        case .code: return .purple
+        case .default: return .gray
+        }
+    }
+}
+
+struct APIKeySheet: View {
+    @ObservedObject var profileManager = ProfileManager.shared
+    @Environment(\.dismiss) var dismiss
+    @State private var apiKey = ""
+    
     var body: some View {
         VStack(spacing: 20) {
-            Image(systemName: "square.grid.2x2.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(.purple)
-            Text("Context Profiles")
-                .font(.title)
-            Text("Drag & Drop functionality coming soon.")
+            Text("Groq API Key")
+                .font(.title2.bold())
+            
+            Text("Enter your Groq API key for smart email formatting. Get a free key at console.groq.com")
                 .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            
+            SecureField("gsk_...", text: $apiKey)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 300)
+            
+            HStack(spacing: 12) {
+                Button("Cancel") {
+                    dismiss()
+                }
+                .keyboardShortcut(.escape)
+                
+                Button("Save") {
+                    profileManager.saveAPIKey(apiKey)
+                    dismiss()
+                }
+                .keyboardShortcut(.return)
+                .buttonStyle(.borderedProminent)
+                .disabled(apiKey.isEmpty)
+            }
+        }
+        .padding(24)
+        .frame(width: 400)
+        .onAppear {
+            apiKey = profileManager.groqAPIKey
         }
     }
 }
