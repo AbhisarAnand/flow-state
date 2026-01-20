@@ -18,13 +18,4 @@ pack.temp.dmg
 # Config
 .env
 
-# Scripts - Ignore local benchmarks and temporary audio
-Scripts/test_audio.wav
-Scripts/benchmark_transcription.swift
-Scripts/record_test_audio.swift
-Scripts/test_smart_streaming.swift
-Scripts/run_benchmark.sh
-Scripts/test_streaming
-Scripts/benchmark
-Scripts/Package.resolved
-Scripts/.build/
+
