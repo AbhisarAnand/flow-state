@@ -11,16 +11,44 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let audioManager = AudioManager.shared
     let outputManager = OutputManager.shared
     
+    // Streaming accumulation
+    private var accumulatedText: String = ""
+    
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenuBar()
         setupHotkeys()
         
-        // Removed audioManager.startSession() -> Reverted to PTT-only engine start.
+        // --- SMART STREAMING SETUP ---
+        audioManager.onChunkCaptured = { [weak self] chunk in
+            guard let self = self else { return }
+            print("[AppDelegate] ⚡️ Processing stream chunk: \(chunk.count) samples")
+            
+            Task {
+                // Transcribe chunk (Fast/Greedy)
+                let chunkText = await self.transcriptionManager.transcribe(audioSamples: chunk)
+                let trimmed = chunkText.trimmingCharacters(in: .whitespacesAndNewlines)
+                
+                if !trimmed.isEmpty {
+                    await MainActor.run {
+                        // Append with space if needed
+                        if !self.accumulatedText.isEmpty && !self.accumulatedText.hasSuffix(" ") {
+                            self.accumulatedText += " "
+                        }
+                        self.accumulatedText += trimmed
+                        self.appState.partialTranscription = self.accumulatedText
+                        print("[AppDelegate] 📝 Partial: \(self.accumulatedText)")
+                    }
+                }
+            }
+        }
+        // -----------------------------
         
         hotkeyManager.onHotkeyPressed = { [weak self] in
             print("PTT Pressed")
             DispatchQueue.main.async {
                 self?.appState.state = .recording
+                self?.accumulatedText = "" // Reset buffer
+                self?.appState.partialTranscription = ""
                 OverlayManager.shared.show()
                 self?.audioManager.startRecording()
             }
@@ -30,20 +58,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             print("PTT Released")
             DispatchQueue.main.async {
                 self?.appState.state = .processing
-                let samples = self?.audioManager.stopRecording() ?? []
-                let duration = Double(samples.count) / 16000.0 // Duration in Seconds
+                // Capture remaining tail
+                let result = self?.audioManager.stopRecording()
+                let duration = Double(result?.full.count ?? 0) / 16000.0
+                let tailSamples = result?.tail ?? []
                 
                 Task {
                     let totalStart = CFAbsoluteTimeGetCurrent()
-                    
-                    // Measure transcription time
                     let transcribeStart = CFAbsoluteTimeGetCurrent()
-                    let rawText = await self?.transcriptionManager.transcribe(audioSamples: samples) ?? ""
+                    
+                    // Transcribe tail
+                    var finalRawText = self?.accumulatedText ?? ""
+                    if !tailSamples.isEmpty {
+                        let tailText = await self?.transcriptionManager.transcribe(audioSamples: tailSamples) ?? ""
+                        if !tailText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            if !finalRawText.isEmpty && !finalRawText.hasSuffix(" ") {
+                                finalRawText += " "
+                            }
+                            finalRawText += tailText
+                        }
+                    }
+                    
                     let transcribeTime = CFAbsoluteTimeGetCurrent() - transcribeStart
                     
-                    // Skip LLM call if there's no text (accidental triggers)
-                    guard !rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                        print("[AppDelegate] Empty transcription, skipping LLM call")
+                    // Skip LLM if empty
+                    guard !finalRawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                        print("[AppDelegate] Empty transcription")
                         await MainActor.run {
                             self?.appState.state = .idle
                             OverlayManager.shared.hide()
@@ -51,18 +91,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         return
                     }
                     
-                    // Get app context for smart formatting
+                    // Get app context
                     let frontApp = NSWorkspace.shared.frontmostApplication
                     let appName = frontApp?.localizedName
                     let category = ProfileManager.shared.category(for: frontApp?.bundleIdentifier)
                     
-                    // Apply universal smart formatting with app context (LLM time tracked inside GroqService)
-                    let formattedText = await TextFormatter.shared.format(rawText, appName: appName, category: category)
+                    // LLM Formatting
+                    let formattedText = await TextFormatter.shared.format(finalRawText, appName: appName, category: category)
                     
                     let totalEnd = CFAbsoluteTimeGetCurrent()
                     let totalTime = totalEnd - totalStart
                     
-                    // Record metrics
+                    // Metrics
                     let metric = TranscriptionMetric(
                         whisperModel: AppState.shared.selectedModel,
                         llmModel: GroqService.modelName,
@@ -70,7 +110,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         transcriptionTime: transcribeTime,
                         llmFormattingTime: GroqService.lastLLMTime,
                         totalProcessingTime: totalTime,
-                        rawText: rawText,
+                        rawText: finalRawText,
                         formattedText: formattedText
                     )
                     MetricsManager.shared.add(metric)
@@ -81,6 +121,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                             HistoryManager.shared.add(formattedText, duration: duration)
                         }
                         self?.appState.state = .idle
+                        // self?.appState.partialTranscription = "" // Optional: clear or keep until next
                         OverlayManager.shared.hide()
                     }
                 }

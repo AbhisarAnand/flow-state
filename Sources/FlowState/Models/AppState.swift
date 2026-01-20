@@ -16,6 +16,7 @@ class AppState: ObservableObject {
     @Published var isAccessibilityGranted = false
     @Published var amplitude: Float = 0.0
     @Published var fftMagnitudes: [Float] = Array(repeating: 0.1, count: 8) // 8 Frequency Bands for UI
+    @Published var partialTranscription: String = "" // For live streaming updates
     
     @Published var selectedModel: String {
         didSet {

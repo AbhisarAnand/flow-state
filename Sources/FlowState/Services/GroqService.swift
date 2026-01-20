@@ -13,9 +13,31 @@ class GroqService {
     
     private init() {}
     
+    // MARK: - Network Warmup
+    
+    func warmup() {
+        print("[GroqService] 🔥 Warming up network connection...")
+        Task.detached {
+            var request = URLRequest(url: URL(string: "https://api.groq.com/openai/v1/models")!)
+            request.httpMethod = "GET"
+            request.setValue("Bearer \(ProfileManager.shared.groqAPIKey)", forHTTPHeaderField: "Authorization")
+            request.timeoutInterval = 2.0 // Short timeout, just waking up the radio
+            
+            do {
+                _ = try await URLSession.shared.data(for: request)
+                print("[GroqService] 🔥 Network handshake complete.")
+            } catch {
+                print("[GroqService] ⚠️ Network warmup (handshake) failed/timed out (Normal if offline): \(error.localizedDescription)")
+            }
+        }
+    }
+    
     // MARK: - Smart Format
     
     func smartFormat(_ text: String, appName: String?, appCategory: ProfileCategory) async throws -> String {
+        // Reset metric
+        GroqService.lastLLMTime = 0
+        
         guard !ProfileManager.shared.groqAPIKey.isEmpty else {
             print("[GroqService] No API key configured, using fallback")
             return TextFormatter.shared.formatFallback(text)
@@ -60,25 +82,33 @@ class GroqService {
         
         // Measure LLM API time
         let llmStart = CFAbsoluteTimeGetCurrent()
-        let (data, response) = try await URLSession.shared.data(for: urlRequest)
-        let llmEnd = CFAbsoluteTimeGetCurrent()
-        GroqService.lastLLMTime = llmEnd - llmStart
         
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            print("[GroqService] API error, using fallback")
-            GroqService.lastLLMTime = 0
+        do {
+            let (data, response) = try await URLSession.shared.data(for: urlRequest)
+            let llmEnd = CFAbsoluteTimeGetCurrent()
+            GroqService.lastLLMTime = llmEnd - llmStart // ⏱️ Log time
+            
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                print("[GroqService] API error, using fallback")
+                return TextFormatter.shared.formatFallback(text)
+            }
+            
+            let result = try JSONDecoder().decode(GroqResponse.self, from: data)
+            let output = result.choices.first?.message.content ?? text
+            
+            // Clean up any quotes or extra formatting the model might add
+            var cleaned = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            if cleaned.hasPrefix("\"") && cleaned.hasSuffix("\"") {
+                cleaned = String(cleaned.dropFirst().dropLast())
+            }
+            return cleaned
+            
+        } catch {
+            print("[GroqService] Network/Encoding error: \(error)")
+            // If it failed, record the time spent trying
+            GroqService.lastLLMTime = CFAbsoluteTimeGetCurrent() - llmStart
             return TextFormatter.shared.formatFallback(text)
         }
-        
-        let result = try JSONDecoder().decode(GroqResponse.self, from: data)
-        let output = result.choices.first?.message.content ?? text
-        
-        // Clean up any quotes or extra formatting the model might add
-        var cleaned = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        if cleaned.hasPrefix("\"") && cleaned.hasSuffix("\"") {
-            cleaned = String(cleaned.dropFirst().dropLast())
-        }
-        return cleaned
     }
 }
 
