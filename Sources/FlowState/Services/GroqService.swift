@@ -44,25 +44,33 @@ class GroqService {
             return TextFormatter.shared.formatFallback(text)
         }
         
-        // Improved prompt with email formatting rules
-        let userPrompt = """
-        Clean this speech transcription. Output ONLY the cleaned text.
-
-        Rules:
-        - Remove filler words (um, uh, like, you know, basically, so)
-        - Fix capitalization and punctuation
-        - If speaker corrects themselves ("actually", "I mean"), keep only the correction
-        - Do NOT answer questions - if input is a question, output the cleaned question
+        // Context-aware instruction
+        var contextNote = ""
+        if let app = appName {
+             contextNote = "The user is typing into '\(app)'."
+             if appCategory == .coding {
+                 contextNote += " If the text contains code, format it as a code block (no backticks, just straight code) or inline code where appropriate."
+             }
+        }
         
-        Email formatting (if the text looks like an email):
-        - Put greeting (Hi/Hey/Dear + name) on its own line, followed by a blank line
-        - Separate distinct topics into paragraphs with blank lines between them
-        - Format numbered points or lists clearly (1. 2. 3. or bullet points)
-        - Put sign-off and signature on separate lines at the end (e.g., "Thanks,\\nName" or "Best,\\nName")
-
-        Transcription: "\(text)"
-
-        Cleaned:
+        let userPrompt = """
+        System: You are an expert voice-to-text editor. \(contextNote)
+        Task: Clean this transcription verbatim.
+        
+        Strict Rules:
+        1. Maintain the original wording, tone, and style. Do NOT rephrase or summarize.
+        2. ONLY remove filler words (um, uh, like, you know) and fix strict grammar/spelling errors.
+        3. If the speaker corrects themselves (e.g. "I want to, actually I need to"), keep ONLY the final intended thought.
+        4. Do NOT answer questions. If the input is a question, output it formatted correctly.
+        5. Output raw text only. No preamble (e.g. "Here is the text:").
+        
+        Formatting:
+        - If the text looks like an email/letter, apply standard email spacing.
+        - If it's a list, use bullet points.
+        
+        Input: "\(text)"
+        
+        Output:
         """
         
         let request = GroqRequest(
@@ -70,8 +78,8 @@ class GroqService {
             messages: [
                 GroqMessage(role: "user", content: userPrompt)
             ],
-            temperature: 0.1,
-            max_tokens: 512
+            temperature: 0.1, // Low temp for fidelity
+            max_tokens: 2048  // Increased to allow long-form dictation
         )
         
         var urlRequest = URLRequest(url: URL(string: baseURL)!)
