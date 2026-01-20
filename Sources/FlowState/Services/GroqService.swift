@@ -48,7 +48,7 @@ class GroqService {
         var contextNote = ""
         if let app = appName {
              contextNote = "The user is typing into '\(app)'."
-             if appCategory == .coding {
+             if appCategory == .code {
                  contextNote += " If the text contains code, format it as a code block (no backticks, just straight code) or inline code where appropriate."
              }
         }
