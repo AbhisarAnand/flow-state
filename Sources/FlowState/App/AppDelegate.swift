@@ -41,6 +41,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     let rawText = await self?.transcriptionManager.transcribe(audioSamples: samples) ?? ""
                     let transcribeTime = CFAbsoluteTimeGetCurrent() - transcribeStart
                     
+                    // Skip LLM call if there's no text (accidental triggers)
+                    guard !rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                        print("[AppDelegate] Empty transcription, skipping LLM call")
+                        await MainActor.run {
+                            self?.appState.state = .idle
+                            OverlayManager.shared.hide()
+                        }
+                        return
+                    }
+                    
                     // Get app context for smart formatting
                     let frontApp = NSWorkspace.shared.frontmostApplication
                     let appName = frontApp?.localizedName
@@ -104,26 +114,41 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     @objc func openDashboard() {
+        WindowManager.shared.openDashboard()
+    }
+    
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         NSApp.activate(ignoringOtherApps: true)
         
-        // Try to find an existing dashboard window
-        // Excluding the overlay window if possible (Overlay is typically NSPanel or specific level)
-        let windows = NSApp.windows.filter { window in
-            return window.isVisible || window.isMiniaturized
+        if !flag {
+            // No visible windows - need to create one
+            // Find any existing SwiftUI window (may be hidden/closed)
+            for window in NSApp.windows {
+                if window.level == .normal && 
+                   !window.className.contains("StatusBar") &&
+                   window.contentView != nil {
+                    window.makeKeyAndOrderFront(nil)
+                    return true
+                }
+            }
+            
+            // No window found at all - SwiftUI will create one on activation
+            // Force creation by making a new window request
+            DispatchQueue.main.async {
+                // Create new window via SwiftUI scene
+                for window in NSApp.windows {
+                    if window.level == .normal {
+                        window.makeKeyAndOrderFront(nil)
+                        break
+                    }
+                }
+            }
+        } else {
+            // Has visible windows - bring to front
+            NSApp.windows.first { $0.level == .normal }?.makeKeyAndOrderFront(nil)
         }
         
-        if let mainWindow = windows.first(where: { $0.title != "" && $0.className != "NSStatusBarWindow" }) {
-            if mainWindow.isMiniaturized {
-                mainWindow.deminiaturize(nil)
-            }
-            mainWindow.makeKeyAndOrderFront(nil)
-        } else {
-            // If no window is found (it was closed), we need to rely on SwiftUI's reopen behavior
-            // or trigger it via URL if configured.
-            // Fallback: Trigger standard app activation which usually reopens main window
-            // for "Reopen on activate" apps.
-             NSApp.arrangeInFront(nil)
-        }
+        return true
     }
     
     func setupHotkeys() {}

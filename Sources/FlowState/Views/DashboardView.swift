@@ -454,38 +454,28 @@ struct DataView: View {
                         .frame(maxWidth: .infinity)
                         .padding(40)
                     } else {
-                        // Table Header
-                        HStack(spacing: 12) {
-                            Text("Time").frame(width: 65, alignment: .leading)
-                            
-                            // Models
-                            Group {
-                                Text("Audio Model").frame(width: 90, alignment: .leading)
-                                Text("Text Model").frame(width: 90, alignment: .leading)
+                        // Grid Table
+                        Grid(horizontalSpacing: 0, verticalSpacing: 0) {
+                            GridRow {
+                                Text("Time").padding(.vertical, 8).padding(.leading, 12)
+                                Text("Audio Model").padding(.vertical, 8)
+                                Text("Text Model").padding(.vertical, 8)
+                                Text("Audio").padding(.vertical, 8).gridColumnAlignment(.trailing)
+                                Text("Text").padding(.vertical, 8).gridColumnAlignment(.trailing)
+                                Text("Lag").padding(.vertical, 8).gridColumnAlignment(.trailing)
+                                Text("Total").padding(.vertical, 8).padding(.trailing, 12).gridColumnAlignment(.trailing)
                             }
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                            .gridCellUnsizedAxes([.vertical])
                             
-                            // Timings
-                            Group {
-                                Text("Audio").frame(width: 50, alignment: .trailing)
-                                Text("Text").frame(width: 50, alignment: .trailing)
-                                Text("Lag").frame(width: 50, alignment: .trailing)
-                                Text("Total").frame(width: 55, alignment: .trailing)
-                            }
+                            Divider()
                             
-                            Text("Content").frame(minWidth: 100, alignment: .leading)
-                        }
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 12)
-                        
-                        Divider()
-                        
-                        // Table Rows
-                        LazyVStack(spacing: 4) {
                             ForEach(metricsManager.metrics) { metric in
                                 MetricRow(metric: metric)
                             }
                         }
+                        .cornerRadius(12)
                     }
                 }
                 .glassCard()
@@ -521,115 +511,112 @@ struct MetricRow: View {
     @State private var isExpanded = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
-                Text(metric.timestamp, style: .time)
-                    .font(.caption.monospacedDigit())
-                    .frame(width: 65, alignment: .leading)
-                    .foregroundStyle(.secondary)
-                
-                // Models
-                Group {
-                    Text(shortModelName(metric.whisperModel))
-                        .font(.caption)
-                        .frame(width: 90, alignment: .leading)
-                        .foregroundStyle(.blue)
-                        .lineLimit(1)
-                    
-                    Text(shortModelName(metric.llmModel))
-                        .font(.caption)
-                        .frame(width: 90, alignment: .leading)
-                        .foregroundStyle(.purple)
-                        .lineLimit(1)
-                }
-                
-                // Timings
-                Group {
-                    Text(String(format: "%.1fs", metric.transcriptionTime))
-                        .font(.caption.monospacedDigit())
-                        .frame(width: 50, alignment: .trailing)
-                        .foregroundStyle(.blue.opacity(0.8))
-                    
-                    Text(String(format: "%.1fs", metric.llmFormattingTime))
-                        .font(.caption.monospacedDigit())
-                        .frame(width: 50, alignment: .trailing)
-                        .foregroundStyle(.purple.opacity(0.8))
-                    
-                    Text(String(format: "%.1fs", metric.overheadTime))
-                        .font(.caption.monospacedDigit())
-                        .frame(width: 50, alignment: .trailing)
-                        .foregroundStyle(.orange.opacity(0.8))
-                    
-                    Text(String(format: "%.1fs", metric.totalProcessingTime))
-                        .font(.caption.monospacedDigit().bold())
-                        .frame(width: 55, alignment: .trailing)
-                        .foregroundStyle(.green)
-                }
-                
-                Text(metric.formattedText)
-                    .font(.caption)
-                    .foregroundStyle(.primary.opacity(0.8))
-                    .frame(minWidth: 100, alignment: .leading)
-                    .lineLimit(1)
-                
-                Image(systemName: "chevron.right")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
-            }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 12)
-            .background(isExpanded ? Color.white.opacity(0.05) : Color.white.opacity(0.02))
-            .cornerRadius(8)
-            .onTapGesture {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isExpanded.toggle()
-                }
-            }
+        GridRow {
+            Text(metric.timestamp, style: .time)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .padding(.vertical, 12)
+                .padding(.leading, 12)
             
-            if isExpanded {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Recording Duration").font(.caption2).foregroundStyle(.secondary)
-                            Text(String(format: "%.2f seconds", metric.recordingDuration)).font(.caption)
-                        }
-                        Spacer()
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Input Length").font(.caption2).foregroundStyle(.secondary)
-                            Text("\(metric.inputLength) chars").font(.caption)
-                        }
-                        Spacer()
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Output Length").font(.caption2).foregroundStyle(.secondary)
-                            Text("\(metric.outputLength) chars").font(.caption)
-                        }
-                    }
-                    
-                    Divider()
-                    
-                    Text("Raw Transcription").font(.caption2).foregroundStyle(.secondary)
-                    Text(metric.rawText)
-                        .font(.caption)
-                        .padding(8)
-                        .background(Color.white.opacity(0.03))
-                        .cornerRadius(6)
-                    
-                    Text("Formatted Output").font(.caption2).foregroundStyle(.secondary)
-                    Text(metric.formattedText)
-                        .font(.caption)
-                        .padding(8)
-                        .background(Color.white.opacity(0.03))
-                        .cornerRadius(6)
-                }
-                .padding(12)
-                .background(Color.white.opacity(0.02))
-                .cornerRadius(8)
-                .padding(.leading, 8)
+            Text(shortModelName(metric.whisperModel))
+                .font(.caption)
+                .foregroundStyle(.blue)
+                .padding(.vertical, 12)
+            
+            Text(shortModelName(metric.llmModel))
+                .font(.caption)
+                .foregroundStyle(.purple)
+                .padding(.vertical, 12)
+            
+            Text(String(format: "%.1fs", metric.transcriptionTime))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.blue.opacity(0.8))
+                .padding(.vertical, 12)
+            
+            Text(String(format: "%.1fs", metric.llmFormattingTime))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.purple.opacity(0.8))
+                .padding(.vertical, 12)
+            
+            Text(String(format: "%.1fs", metric.overheadTime))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.orange.opacity(0.8))
+                .padding(.vertical, 12)
+            
+            Text(String(format: "%.1fs", metric.totalProcessingTime))
+                .font(.caption.monospacedDigit().bold())
+                .foregroundStyle(.green)
+                .padding(.vertical, 12)
+                .padding(.trailing, 12)
+        }
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isExpanded.toggle()
+            }
+        }
+        
+        if isExpanded {
+            GridRow {
+                ExpandedMetricDetail(metric: metric)
+                    .gridCellColumns(7) // Span all 7 columns (Time + 2 Models + 4 Timings)
             }
         }
     }
+}
+
+struct ExpandedMetricDetail: View {
+    let metric: TranscriptionMetric
     
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Content Summary (Prominent at top)
+            VStack(alignment: .leading, spacing: 4) {
+                 Text("Formatted Text")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                
+                 Text(metric.formattedText)
+                    .font(.body) // Larger font for readability
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            
+            Divider()
+            
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Recording Duration").font(.caption2).foregroundStyle(.secondary)
+                    Text(String(format: "%.2f seconds", metric.recordingDuration)).font(.caption)
+                }
+                Spacer()
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Input Length").font(.caption2).foregroundStyle(.secondary)
+                    Text("\(metric.inputLength) chars").font(.caption)
+                }
+                Spacer()
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Output Length").font(.caption2).foregroundStyle(.secondary)
+                    Text("\(metric.outputLength) chars").font(.caption)
+                }
+            }
+            
+            if metric.rawText != metric.formattedText {
+                Divider()
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Raw Transcription").font(.caption2).foregroundStyle(.secondary)
+                    Text(metric.rawText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .padding(16)
+        .background(Color.primary.opacity(0.05)) // Adaptive: darker in dark mode, lighter in light mode
+    }
+}
+
     func shortModelName(_ name: String) -> String {
         // Shorten model names for display
         if name.contains("70b") { return "70B" }
@@ -642,7 +629,7 @@ struct MetricRow: View {
         if name.contains("Distil") { return "Distil" }
         return String(name.prefix(10))
     }
-}
+
 
 // Keeping SettingsView mostly the same but wrapped in V2 structure if needed, or reusing existng.
 // Reusing standard SettingsView from previous file content, but ensuring it builds.
@@ -855,6 +842,21 @@ struct SettingsView: View {
                             .toggleStyle(.switch)
                             .labelsHidden()
                     }
+                    
+                    Divider()
+                    
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Smart Formatting (LLM)")
+                            Text("Uses Groq API to format transcriptions")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Toggle("", isOn: $appState.llmEnabled)
+                            .toggleStyle(.switch)
+                            .labelsHidden()
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .glassCard()
@@ -878,22 +880,6 @@ struct SettingsView: View {
                             UpdateManager.shared.checkForUpdates()
                         }
                     }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .glassCard()
-                
-                // Debug Log
-                VStack(alignment: .leading, spacing: 12) {
-                    Label("Last Log", systemImage: "ladybug")
-                        .font(.headline)
-                        
-                    Text(appState.lastLog)
-                        .font(.system(size: 10, design: .monospaced))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .frame(height: 80)
-                        .padding(8)
-                        .background(Color.black.opacity(0.1))
-                        .cornerRadius(8)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .glassCard()
@@ -1016,11 +1002,11 @@ struct HistoryRow: View {
             .foregroundStyle(.tertiary)
         }
         .padding(16)
-        .background(.regularMaterial) 
+        .background(Color.primary.opacity(0.05)) // Adaptive background
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
              RoundedRectangle(cornerRadius: 12)
-                 .stroke(.white.opacity(0.2), lineWidth: 0.5)
+                 .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
         )
     }
 }

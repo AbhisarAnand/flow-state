@@ -25,8 +25,9 @@ class AppState: ObservableObject {
     
     init() {
         self.selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "base.en"
-        self.userTypingSpeed = UserDefaults.standard.integer(forKey: "userTypingSpeed")
-        if self.userTypingSpeed == 0 { self.userTypingSpeed = 40 } // Default
+        self.llmEnabled = UserDefaults.standard.object(forKey: "llmEnabled") as? Bool ?? true // Default: enabled
+        let savedTypingSpeed = UserDefaults.standard.integer(forKey: "userTypingSpeed")
+        self.userTypingSpeed = savedTypingSpeed == 0 ? 40 : savedTypingSpeed
     }
 
     @Published var userTypingSpeed: Int {
@@ -37,6 +38,10 @@ class AppState: ObservableObject {
     @Published var isModelReady: Bool = false // New: Tracks confirmed loaded state
     @Published var loadingProgress: String = "" // "Downloading 50%..."
     @Published var lastLog: String = "No logs yet."
+    
+    @Published var llmEnabled: Bool {
+        didSet { UserDefaults.standard.set(llmEnabled, forKey: "llmEnabled") }
+    }
     
     func showNotificationBriefly(text: String = "Copied") {
         DispatchQueue.main.async {

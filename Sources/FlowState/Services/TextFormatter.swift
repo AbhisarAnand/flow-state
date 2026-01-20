@@ -7,9 +7,14 @@ class TextFormatter {
     
     private init() {}
     
-    // MARK: - Main Format Function (LLM-powered with Gemma 2)
+    // MARK: - Main Format Function (LLM-powered with Groq)
     
     func format(_ text: String, appName: String?, category: ProfileCategory) async -> String {
+        // Skip LLM if user has disabled it
+        guard AppState.shared.llmEnabled else {
+            return formatFallback(text)
+        }
+        
         do {
             return try await GroqService.shared.smartFormat(text, appName: appName, appCategory: category)
         } catch {
