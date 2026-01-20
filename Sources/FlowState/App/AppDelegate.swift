@@ -14,7 +14,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Streaming accumulation
     private var accumulatedText: String = ""
     private var activeTasks: [Task<Void, Never>] = []
-    private let tasksLock = NSLock()
+    private let tasksQueue = DispatchQueue(label: "com.flowstate.tasksQueue") // Serial queue for synchronization
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenuBar()
@@ -44,16 +44,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             
             // Sync add to active tasks
-            self.tasksLock.lock()
-            self.activeTasks.append(task)
-            self.tasksLock.unlock()
+            self.tasksQueue.sync {
+                self.activeTasks.append(task)
+            }
             
             // Cleanup when done
             Task {
                 _ = await task.result
-                self.tasksLock.lock()
-                self.activeTasks.removeAll { $0 == task }
-                self.tasksLock.unlock()
+                self.tasksQueue.async {
+                    // Safe removal by instance identity
+                    self.activeTasks.removeAll { $0 == task }
+                }
             }
         }
         // -----------------------------
@@ -64,9 +65,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.appState.state = .recording
                 self?.accumulatedText = "" // Reset buffer
                 
-                self?.tasksLock.lock()
-                self?.activeTasks.removeAll() // Clear old tasks
-                self?.tasksLock.unlock()
+                self?.tasksQueue.sync {
+                    // Cancel old tasks to prevent leaks
+                    self?.activeTasks.forEach { $0.cancel() }
+                    self?.activeTasks.removeAll()
+                }
                 
                 self?.appState.partialTranscription = ""
                 OverlayManager.shared.show()
@@ -86,9 +89,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 Task {
                     // 🛑 Wait for all streaming chunks to finish
                     var pending: [Task<Void, Never>] = []
-                    self?.tasksLock.lock()
-                    pending = self?.activeTasks ?? []
-                    self?.tasksLock.unlock()
+                    self?.tasksQueue.sync {
+                        pending = self?.activeTasks ?? []
+                    }
                     
                     if !pending.isEmpty {
                         print("[AppDelegate] ⏳ Waiting for \(pending.count) pending chunk(s)...")

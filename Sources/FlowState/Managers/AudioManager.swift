@@ -30,10 +30,11 @@ class AudioManager: NSObject, ObservableObject {
     private var timeSinceLastChunk: Double = 0
     
     // Constants for Smart Streaming
-    private let minChunkSeconds: Double = 2.0 // Minimum chunk size (was 4.0, lowered for responsiveness)
-    private let maxChunkSeconds: Double = 10.0 // Force cut if too long
-    private let silenceThreshold: Float = 0.02 // RMS threshold for "Silence"
-    private let minSilenceDuration: Double = 0.4 // Duration to confirm pause
+    // Config (from AppState)
+    private var minChunkSeconds: Double { AppState.shared.minChunkSeconds }
+    private var maxChunkSeconds: Double { AppState.shared.maxChunkSeconds }
+    private var silenceThreshold: Float { AppState.shared.silenceThreshold }
+    private var minSilenceDuration: Double { AppState.shared.minSilenceDuration }
     
     // Check permissions only
     func checkPermissions() {

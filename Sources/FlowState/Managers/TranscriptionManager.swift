@@ -138,7 +138,7 @@ class TranscriptionManager {
     private func cleanupText(_ text: String) -> String {
         var clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
         // Filter common Whisper hallucinations
-        let hallucinations = ["[Music]", "[BLANK_AUDIO]", "Breathing", "Subtitle", "(Music)", "Music", "Silence", "You"]
+        let hallucinations = ["[Music]", "[BLANK_AUDIO]", "Breathing", "Subtitle", "(Music)", "Music", "Silence"]
         for h in hallucinations {
             clean = clean.replacingOccurrences(of: h, with: "", options: .caseInsensitive)
         }

@@ -16,6 +16,7 @@ class GroqService {
     // MARK: - Network Warmup
     
     func warmup() {
+        guard !ProfileManager.shared.groqAPIKey.isEmpty else { return }
         print("[GroqService] 🔥 Warming up network connection...")
         Task.detached {
             var request = URLRequest(url: URL(string: "https://api.groq.com/openai/v1/models")!)
