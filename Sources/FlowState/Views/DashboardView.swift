@@ -955,7 +955,7 @@ struct HelpView: View {
             Text("Flow State Help")
                 .font(.title)
             
-            Text("1. Hold Shift+Cmd+Space (or Fn)\n2. Speak clearly\n3. Release to Paste")
+            Text("1. Hold Function (Fn) key\n2. Speak clearly\n3. Release to Paste")
                 .multilineTextAlignment(.center)
         }
     }
