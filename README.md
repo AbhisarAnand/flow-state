@@ -1,4 +1,4 @@
-# <img src="logo.png" height="42" align="top"/> Flow State
+# <img src="Assets/logo.png" height="42" align="top"/> Flow State
 
 ![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)
 ![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg)
