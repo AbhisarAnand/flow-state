@@ -58,6 +58,9 @@ class TranscriptionManager {
             self.isModelLoaded = true
             self.currentLoadedModel = modelName
             
+            // 🔥 Warmup immediately
+            Task { await self.warmupModel() }
+            
             DispatchQueue.main.async {
                 AppState.shared.isModelLoading = false
                 AppState.shared.isModelReady = true // Mark as Ready
@@ -85,6 +88,27 @@ class TranscriptionManager {
 
     }
     
+    func warmupModel() async {
+        guard let whisper = whisperKit, isModelLoaded else { return }
+        print("[TranscriptionManager] 🔥 Warming up model...")
+        
+        let start = CFAbsoluteTimeGetCurrent()
+        // 0.5s of silence
+        let silentAudio = [Float](repeating: 0.0, count: 8000)
+        
+        do {
+            var options = DecodingOptions()
+            options.temperature = 0.0 // Greedy for speed
+            options.withoutTimestamps = true
+            
+            _ = try await whisper.transcribe(audioArray: silentAudio, decodeOptions: options)
+            let elapsed = CFAbsoluteTimeGetCurrent() - start
+            print("[TranscriptionManager] 🔥 Warmup complete in \(String(format: "%.2f", elapsed))s")
+        } catch {
+            print("[TranscriptionManager] ⚠️ Warmup failed: \(error)")
+        }
+    }
+
     func transcribe(audioSamples: [Float]) async -> String {
         guard let whisper = whisperKit, isModelLoaded else {
             if !isModelLoaded { Task { await loadModel() } }
@@ -92,7 +116,11 @@ class TranscriptionManager {
         }
         
         do {
-            let result = try await whisper.transcribe(audioArray: audioSamples)
+            var options = DecodingOptions()
+            options.temperature = 0.0 // Greedy for speed
+            options.withoutTimestamps = true
+            
+            let result = try await whisper.transcribe(audioArray: audioSamples, decodeOptions: options)
             let rawText = result.map(\.text).joined(separator: " ")
             let clean = cleanupText(rawText)
             
@@ -110,7 +138,7 @@ class TranscriptionManager {
     private func cleanupText(_ text: String) -> String {
         var clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
         // Filter common Whisper hallucinations
-        let hallucinations = ["[Music]", "[BLANK_AUDIO]", "Breathing", "Subtitle", "(Music)", "Music", "Silence"]
+        let hallucinations = ["[Music]", "[BLANK_AUDIO]", "Breathing", "Subtitle", "(Music)", "Music", "Silence", "You"]
         for h in hallucinations {
             clean = clean.replacingOccurrences(of: h, with: "", options: .caseInsensitive)
         }

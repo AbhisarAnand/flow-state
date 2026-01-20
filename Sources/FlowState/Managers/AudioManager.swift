@@ -23,6 +23,18 @@ class AudioManager: NSObject, ObservableObject {
     private var fftRealPart = [Float](repeating: 0, count: 512)
     private var fftImagPart = [Float](repeating: 0, count: 512)
     
+    // VAD & Streaming State
+    var onChunkCaptured: (([Float]) -> Void)?
+    private var lastChunkEndIndex: Int = 0
+    private var silenceDuration: Double = 0
+    private var timeSinceLastChunk: Double = 0
+    
+    // Constants for Smart Streaming
+    private let minChunkSeconds: Double = 2.0 // Minimum chunk size (was 4.0, lowered for responsiveness)
+    private let maxChunkSeconds: Double = 10.0 // Force cut if too long
+    private let silenceThreshold: Float = 0.02 // RMS threshold for "Silence"
+    private let minSilenceDuration: Double = 0.4 // Duration to confirm pause
+    
     // Check permissions only
     func checkPermissions() {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
@@ -42,9 +54,6 @@ class AudioManager: NSObject, ObservableObject {
             print("[AudioManager] Audio engine or input node not initialized.")
             return
         }
-        
-        // Removed setVoiceProcessingEnabled(true) to avoid transcription failure.
-        // The signal chain for "installTap" is fragile with VPIO enabled on some Macs.
         
         let format = inputNode.outputFormat(forBus: 0)
         
@@ -76,6 +85,14 @@ class AudioManager: NSObject, ObservableObject {
         audioBuffer.removeAll()
         AppState.shared.amplitude = 0
         AppState.shared.fftMagnitudes = Array(repeating: 0.1, count: 16)
+        
+        // Reset Streaming State
+        lastChunkEndIndex = 0
+        silenceDuration = 0
+        timeSinceLastChunk = 0
+        
+        // 🔥 Warmup Network (SSL Handshake)
+        GroqService.shared.warmup()
         
         self.audioEngine = AVAudioEngine()
         self.inputNode = self.audioEngine?.inputNode
@@ -114,9 +131,39 @@ class AudioManager: NSObject, ObservableObject {
             
             // Calculate Amplitude for UI (on 16kHz signal is fine)
             var sum: Float = 0
-            for vid in floats { sum += vid * vid }
+            for val in floats { sum += val * val }
             let rms = sqrt(sum / Float(processedFrames))
             let normalized = min(max(rms * 10.0, 0), 1.0)
+            
+            // --- SMART STREAMING LOGIC ---
+            let bufferDuration = Double(processedFrames) / sampleRate
+            timeSinceLastChunk += bufferDuration
+            
+            if rms < silenceThreshold {
+                silenceDuration += bufferDuration
+            } else {
+                silenceDuration = 0
+            }
+            
+            // Check Trigger
+            let canCut = timeSinceLastChunk > minChunkSeconds && silenceDuration > minSilenceDuration
+            let mustCut = timeSinceLastChunk > maxChunkSeconds
+            
+            if canCut || mustCut {
+                // Cut the chunk
+                let endIndex = audioBuffer.count
+                // If VAD cut, maybe trim the silence? For now, raw cut is safer to keep flow.
+                let chunk = Array(audioBuffer[lastChunkEndIndex..<endIndex])
+                
+                print("[AudioManager] ✂️ Smart Chunk Triggered: \(String(format: "%.1fs", timeSinceLastChunk)) (Silence: \(String(format: "%.2fs", silenceDuration)))")
+                
+                onChunkCaptured?(chunk)
+                
+                lastChunkEndIndex = endIndex
+                timeSinceLastChunk = 0
+                silenceDuration = 0 // Reset silence counter after cut
+            }
+            // -----------------------------
             
             // --- COMPUTING FFT ---
             if let fftSetup = self.fftSetup {
@@ -149,16 +196,6 @@ class AudioManager: NSObject, ObservableObject {
                         var magnitudes = [Float](repeating: 0.0, count: 256)
                         vDSP_zvmags(&splitComplex, 1, &magnitudes, 1, 256)
                         
-                        // Precise Frequency Mapping: 8 Bands for Human Voice
-                        // Sample Rate: 16000 Hz, FFT: 1024 -> 512 Bins (0-8kHz)
-                        
-                        // USER REQUEST: Zoom In (600Hz - 4kHz).
-                        // 8kHz was too high (right bars were dead).
-                        // New range focuses fully on "Voice Articulation".
-                        
-                        // Start: 600Hz (~Index 38)
-                        // End:   4000Hz (~Index 256)
-                        
                         let ranges: [(Int, Int)] = [
                             (38, 50),    // Bar 0: ~600 - 800 Hz
                             (50, 65),    // Bar 1: ~800 - 1.0k Hz
@@ -184,16 +221,8 @@ class AudioManager: NSObject, ObservableObject {
                                 }
                             }
                             
-                            // Average magnitude in this "Note Band"
                             let avgMag = binCount > 0 ? magSum / binCount : 0
-                            
-                            // USER REQUEST: Removed Spectral Whitening.
-                            // Showing raw Note Magnitude.
-                            
-                            // Log scaling
                             let db = 10 * log10(max(avgMag, 1e-9))
-                            
-                            // Gate: -35dB Floor, 0dB Ceiling (User Preferred)
                             let minDb: Float = -35.0
                             let maxDb: Float = 0.0
                             
@@ -202,11 +231,10 @@ class AudioManager: NSObject, ObservableObject {
                             } else {
                                 let norm = (db - minDb) / (maxDb - minDb)
                                 let clamped = min(max(norm, 0.0), 1.0)
-                                newMags[i] = clamped * clamped // Square law for punch
+                                newMags[i] = clamped * clamped 
                             }
                         }
                         
-                        // Time-Domain Smoothing
                         let decayFactor: Float = 0.7
                         
                         DispatchQueue.main.async {
@@ -233,7 +261,8 @@ class AudioManager: NSObject, ObservableObject {
         }
     }
     
-    func stopRecording() -> [Float] {
+    // Returns (FullBuffer, TailChunk)
+    func stopRecording() -> (full: [Float], tail: [Float]) {
         if let engine = audioEngine {
              engine.stop()
              inputNode?.removeTap(onBus: 0)
@@ -243,7 +272,16 @@ class AudioManager: NSObject, ObservableObject {
         converter = nil
         isRecording = false
         
-        // --- DIAGNOSTICS (Kept from V2) ---
+        // Capture the final tail
+        var tail: [Float] = []
+        if lastChunkEndIndex < audioBuffer.count {
+            tail = Array(audioBuffer[lastChunkEndIndex..<audioBuffer.count])
+            print("[AudioManager] ⏹️ Stopped. Capturing tail: \(tail.count) samples")
+        } else {
+            print("[AudioManager] ⏹️ Stopped. No tail to capture.")
+        }
+        
+        // --- DIAGNOSTICS ---
         var sum: Float = 0
         for val in audioBuffer { sum += val * val }
         let rms = sqrt(sum / Float(max(audioBuffer.count, 1)))
@@ -251,18 +289,16 @@ class AudioManager: NSObject, ObservableObject {
         
         let deviceName = AVCaptureDevice.default(for: .audio)?.localizedName ?? "Unknown Device"
         
-        let status = "[AudioManager] ⏹️ Stopped. Captured \(audioBuffer.count) samples. RMS: \(String(format: "%.5f", rms)) Device: \(deviceName)"
+        let status = "[AudioManager] 📊 Session: \(audioBuffer.count) samples. RMS: \(String(format: "%.5f", rms)) Device: \(deviceName)"
         print(status)
         
         DispatchQueue.main.async {
-            // Prepend diagnostic to log, but keep model log as primary update target later
             let quietWarning = isSilent ? "\n⚠️ LOW VOLUME on \(deviceName). Check Settings > Sound." : ""
             AppState.shared.lastLog = "Audio: \(self.audioBuffer.count)smp | Vol: \(String(format: "%.3f", rms)) | Mic: \(deviceName)\(quietWarning)"
             AppState.shared.amplitude = 0
             AppState.shared.fftMagnitudes = Array(repeating: 0.1, count: 16)
         }
-        // ----------------------------------
         
-        return audioBuffer
+        return (audioBuffer, tail)
     }
 }
