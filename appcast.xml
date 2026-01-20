@@ -3,22 +3,22 @@
     <channel>
         <title>FlowState</title>
         <item>
-            <title>2.0.0</title>
-            <pubDate>Thu, 15 Jan 2026 14:00:00 +0000</pubDate>
+            <title>2.3.0</title>
+            <pubDate>Mon, 20 Jan 2026 17:00:00 +0000</pubDate>
             <sparkle:version>1</sparkle:version>
-            <sparkle:shortVersionString>2.0.0</sparkle:shortVersionString>
-            <enclosure url="https://github.com/AbhisarAnand/flow-state/releases/download/v2.0.0/FlowState_Installer.dmg"
+            <sparkle:shortVersionString>2.3.0</sparkle:shortVersionString>
+            <enclosure url="https://github.com/AbhisarAnand/flow-state/releases/download/v2.3.0/FlowState_Installer.dmg"
                        sparkle:edSignature="bY/jPlteKNEhGl8t7z1Y5YLFbwSubWsyCSYTiPGKx8bwAlrzY9vRvMhjI6GE+zqfLnki7FIq+sve18tpaADRAQ=="
                        length="28154539"
                        type="application/octet-stream"/>
             <description>
                 <![CDATA[
-                <h2>FlowState 2.0 (Velocity Update)</h2>
+                <h2>FlowState 2.3.0 (Intelligence Update)</h2>
                 <ul>
-                    <li>New UI: Glassmorphism Dashboard with Flow Gauge</li>
-                    <li>Stats: Time Saved & Total Words tracking</li>
-                    <li>Fix: Auto-Updates now signed & functioning</li>
-                    <li>Feature: Fn Key & Fn+Space shortcuts</li>
+                    <li>🧠 Context Aware: Code vs Email modes</li>
+                    <li>📝 Long-form: 2048 token limit (1500+ words)</li>
+                    <li>🔐 Verbatim Mode: Stricter, no-rewrite prompt</li>
+                    <li>⚡️ Performance: Concurrency fixes & VAD tuning</li>
                 </ul>
                 ]]>
             </description>
