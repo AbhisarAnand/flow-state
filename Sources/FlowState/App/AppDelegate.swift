@@ -13,6 +13,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     // Streaming accumulation
     private var accumulatedText: String = ""
+    private var activeTasks: [Task<Void, Never>] = []
+    private let tasksLock = NSLock()
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenuBar()
@@ -23,7 +25,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self = self else { return }
             print("[AppDelegate] ⚡️ Processing stream chunk: \(chunk.count) samples")
             
-            Task {
+            let task = Task {
                 // Transcribe chunk (Fast/Greedy)
                 let chunkText = await self.transcriptionManager.transcribe(audioSamples: chunk)
                 let trimmed = chunkText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -40,6 +42,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     }
                 }
             }
+            
+            // Sync add to active tasks
+            self.tasksLock.lock()
+            self.activeTasks.append(task)
+            self.tasksLock.unlock()
+            
+            // Cleanup when done
+            Task {
+                _ = await task.result
+                self.tasksLock.lock()
+                self.activeTasks.removeAll { $0 == task }
+                self.tasksLock.unlock()
+            }
         }
         // -----------------------------
         
@@ -48,6 +63,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async {
                 self?.appState.state = .recording
                 self?.accumulatedText = "" // Reset buffer
+                
+                self?.tasksLock.lock()
+                self?.activeTasks.removeAll() // Clear old tasks
+                self?.tasksLock.unlock()
+                
                 self?.appState.partialTranscription = ""
                 OverlayManager.shared.show()
                 self?.audioManager.startRecording()
@@ -64,11 +84,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 let tailSamples = result?.tail ?? []
                 
                 Task {
+                    // 🛑 Wait for all streaming chunks to finish
+                    var pending: [Task<Void, Never>] = []
+                    self?.tasksLock.lock()
+                    pending = self?.activeTasks ?? []
+                    self?.tasksLock.unlock()
+                    
+                    if !pending.isEmpty {
+                        print("[AppDelegate] ⏳ Waiting for \(pending.count) pending chunk(s)...")
+                        for t in pending { _ = await t.value }
+                        print("[AppDelegate] ✅ Pending chunks finished.")
+                    }
+                    
                     let totalStart = CFAbsoluteTimeGetCurrent()
                     let transcribeStart = CFAbsoluteTimeGetCurrent()
                     
                     // Transcribe tail
-                    var finalRawText = self?.accumulatedText ?? ""
+                    var finalRawText = await MainActor.run { self?.accumulatedText ?? "" }
                     if !tailSamples.isEmpty {
                         let tailText = await self?.transcriptionManager.transcribe(audioSamples: tailSamples) ?? ""
                         if !tailText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
