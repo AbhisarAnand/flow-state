@@ -709,6 +709,36 @@ struct SettingsView: View {
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         }
+                        
+                        Divider()
+                        
+                        // Beam Size Control
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Accuracy (Beam Size)")
+                                Spacer()
+                                Text("\(appState.beamSize)")
+                                    .font(.headline)
+                                    .foregroundStyle(.blue)
+                            }
+                            
+                            Slider(value: Binding(
+                                get: { Double(appState.beamSize) },
+                                set: { appState.beamSize = Int($0) }
+                            ), in: 1...5, step: 1)
+                            
+                            HStack {
+                                Text("Fastest (Greedy)")
+                                Spacer()
+                                Text("Most Accurate")
+                            }
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            
+                            Text("Higher values check more sentence possibilities but use more CPU/GPU.")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -869,7 +899,7 @@ struct SettingsView: View {
                     HStack {
                         Text("Version")
                         Spacer()
-                        Text("2.3.0")
+                        Text("2.3.1")
                             .foregroundStyle(.secondary)
                     }
                     Divider()

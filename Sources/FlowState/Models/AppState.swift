@@ -35,11 +35,18 @@ class AppState: ObservableObject {
         self.llmEnabled = UserDefaults.standard.object(forKey: "llmEnabled") as? Bool ?? true // Default: enabled
         let savedTypingSpeed = UserDefaults.standard.integer(forKey: "userTypingSpeed")
         self.userTypingSpeed = savedTypingSpeed == 0 ? 40 : savedTypingSpeed
+        
+        let savedBeamSize = UserDefaults.standard.integer(forKey: "beamSize")
+        self.beamSize = savedBeamSize == 0 ? 3 : savedBeamSize
     }
 
     @Published var userTypingSpeed: Int {
         didSet { UserDefaults.standard.set(userTypingSpeed, forKey: "userTypingSpeed") }
     }    
+
+    @Published var beamSize: Int {
+        didSet { UserDefaults.standard.set(beamSize, forKey: "beamSize") }
+    }
 
     @Published var isModelLoading: Bool = false
     @Published var isModelReady: Bool = false // New: Tracks confirmed loaded state
