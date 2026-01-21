@@ -117,7 +117,8 @@ class TranscriptionManager {
         
         do {
             var options = DecodingOptions()
-            options.temperature = 0.0 // Greedy for speed
+            options.temperature = 0.0
+            options.beamSize = 3 // Increased from default/greedy for better accuracy
             options.withoutTimestamps = true
             
             let result = try await whisper.transcribe(audioArray: audioSamples, decodeOptions: options)
