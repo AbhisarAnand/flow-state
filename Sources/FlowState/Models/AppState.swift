@@ -18,6 +18,12 @@ class AppState: ObservableObject {
     @Published var fftMagnitudes: [Float] = Array(repeating: 0.1, count: 8) // 8 Frequency Bands for UI
     @Published var partialTranscription: String = "" // For live streaming updates
     
+    // VAD / Streaming Configuration
+    @Published var minChunkSeconds: Double = 2.0
+    @Published var maxChunkSeconds: Double = 10.0
+    @Published var silenceThreshold: Float = 0.02
+    @Published var minSilenceDuration: Double = 0.4
+    
     @Published var selectedModel: String {
         didSet {
             UserDefaults.standard.set(selectedModel, forKey: "selectedModel")
