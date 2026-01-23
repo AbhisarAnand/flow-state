@@ -22,6 +22,22 @@
 -   **Instant Paste:** Transcribed text is automatically pasted into your active application.
 -   **Global Hotkey:** Trigger dictation from anywhere with a simple shortcut.
 
+## ✨ Smart Formatting (Groq)
+
+Flow State uses **Groq** to intelligently format your text based on the active application:
+
+-   **Formal Mode:** Auto-formats emails in Mail, Outlook, etc.
+-   **Code Mode:** Formats code snippets in Xcode, VSCode, Terminal (e.g., camelCase, snake_case).
+-   **Casual Mode:** Adds emojis and relaxed punctuation for Messages, Discord.
+
+### Setup Instructions
+
+1.  Get your **Free API Key** at [console.groq.com](https://console.groq.com/keys).
+2.  Open **Flow State**.
+3.  Go to the **Profiles** tab.
+4.  Click **Add Key** and paste your API key.
+5.  That's it! The app will now contextually format your dictation lightning fast.
+
 ## 📦 Installation
 
 1.  Download the latest release (`.dmg`).
