@@ -1,9 +1,15 @@
 # <img src="Assets/logo.png" height="42" align="top"/> Flow State
 
-![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)
-![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg)
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Arch](https://img.shields.io/badge/arch-Apple%20Silicon-green)
+<div align="center">
+
+![Version](https://img.shields.io/badge/version-2.3.1-blue.svg?style=for-the-badge)
+![Swift](https://img.shields.io/badge/Swift-5.9-F05138.svg?style=for-the-badge&logo=Swift&logoColor=white)
+![Platform](https://img.shields.io/badge/macOS-14.0+-000000.svg?style=for-the-badge&logo=Apple&logoColor=white)
+
+![Apple Silicon](https://img.shields.io/badge/Apple_Silicon-Optimized-4B4B4B?style=for-the-badge&logo=apple&logoColor=white)
+![WhisperKit](https://img.shields.io/badge/Powered%20By-WhisperKit-purple?style=for-the-badge)
+![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)
+</div>
 
 **Flow State** is a high-performance, local-first AI dictation assistant for macOS. Built with `WhisperKit`, it runs entirely on-device (Apple Silicon optimized), ensuring 100% privacy and zero latency.
 
